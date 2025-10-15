@@ -27,6 +27,7 @@ import { RadioButtonModule } from 'primeng/radiobutton';
 import { Tag, TagModule } from 'primeng/tag';
 import { SelectModule } from 'primeng/select';
 import { AuthService } from '../../auth/auth.service';
+import { CanSeeDirective } from '../../../Share/can_see/can_see.directive';
 
 
 
@@ -82,11 +83,18 @@ interface PricingTier {
         TagModule,
         DropdownModule,
         SelectModule, 
+        CanSeeDirective
     ],
     templateUrl: './publicite.component.html',
     providers: [MessageService, Publiciteservice, ConfirmationService],
 })
 export class PubliciteComponent implements OnInit {
+
+    userRole: string = '';
+    isRecruteur: boolean = false;
+    isAdmin: boolean = false;
+    entrepriseRecruteur?: Entreprise;
+
     activationDialog = false;
     publiciteDialog = false;
     detailsDialog = false;
@@ -140,6 +148,7 @@ export class PubliciteComponent implements OnInit {
     ) {}
 
     ngOnInit(): void {
+        this.detectUserRole();
         this.loadData();
         this.initColumns();
         this.loadPricingAndPaymentOptions();
@@ -222,37 +231,74 @@ export class PubliciteComponent implements OnInit {
     // === GESTION DES PUBLICITÉS (création/édition) ===
     
     openNew() {
-    this.publicite = { 
-        media_request: 'image',
-        type: 'banniere',
-        duree: '7',                    // ⬅️ valeur par défaut utile
-        date_debut: new Date(),        // ⬅️ requis par backend
-        imageFile: null, 
-        videoFile: null,
-        entreprise_id: undefined
-    };
-    this.previewImage = undefined;
-    this.previewVideo = undefined;
-    this.submitted = false;
-    this.publiciteDialog = true;
+        this.publicite = { 
+            media_request: 'image',
+            type: 'banniere',
+            duree: '7',
+            date_debut: new Date(),
+            imageFile: null, 
+            videoFile: null,
+            entreprise_id: undefined
+        };
+
+        // ✅ AUTO-REMPLISSAGE pour recruteur
+        if (this.isRecruteur && this.entrepriseRecruteur) {
+            this.publicite.entreprise_id = this.entrepriseRecruteur.id;
+            this.publicite.entreprise = this.entrepriseRecruteur.id;
+            console.log('✅ Entreprise pré-remplie automatiquement:', this.entrepriseRecruteur.nom_entreprise);
+        }
+
+        this.previewImage = undefined;
+        this.previewVideo = undefined;
+        this.submitted = false;
+        this.publiciteDialog = true;
     }
+
 
     private requireCreationFields(): string | null {
         const p = this.publicite;
+        
         if (!p.titre) return 'Le titre est requis.';
-        if (!p.entreprise_id) return "L'entreprise est requise.";
+        
+        // ✅ Vérification stricte de l'entreprise
+        if (!p.entreprise_id) {
+            if (this.isRecruteur && this.entrepriseRecruteur) {
+                // Fallback : assigner automatiquement
+                p.entreprise_id = this.entrepriseRecruteur.id;
+            } else {
+                return "L'entreprise est requise.";
+            }
+        }
+        
         if (!p.media_request) return 'Le type de média est requis.';
         if (!p.duree) return 'La durée est requise.';
         if (!p.date_debut) return 'La date de début est requise.';
 
         const mr = p.media_request;
-        if ((mr === 'image' || mr === 'both') && !(p.image || p.imageFile)) return 'Une image est requise.';
-        if ((mr === 'video' || mr === 'both') && !(p.video || p.videoFile)) return 'Une vidéo est requise.';
+        if ((mr === 'image' || mr === 'both') && !(p.image || p.imageFile)) {
+            return 'Une image est requise.';
+        }
+        if ((mr === 'video' || mr === 'both') && !(p.video || p.videoFile)) {
+            return 'Une vidéo est requise.';
+        }
+        
         return null;
     }
 
 
     editPublicite(pub: Publicite) {
+        // Vérifier que le recruteur édite bien SA publicité
+        if (this.isRecruteur && this.entrepriseRecruteur) {
+            if (pub.entreprise_id !== this.entrepriseRecruteur.id) {
+                this.messageService.add({
+                    severity: 'error',
+                    summary: 'Accès refusé',
+                    detail: 'Vous ne pouvez modifier que les publicités de votre entreprise'
+                });
+                return;
+            }
+        }
+
         this.publicite = { ...pub, imageFile: null, videoFile: null };
         
         if (pub.entreprise && pub.entreprise.id) {
@@ -645,5 +691,57 @@ savePublicite() {
     this.selectedPubliciteForDetails = undefined;
     }
 
+    private detectUserRole(): void {
+        const rawRole = this.authService.getUserRole();
+        this.userRole = rawRole?.toLowerCase()?.trim() || '';
+        this.isRecruteur = this.userRole === 'recruteur';
+        this.isAdmin = this.userRole === 'administrateur' || this.userRole === 'admin';
+        
+        console.log('🔍 Rôle détecté:', this.userRole, {
+            isRecruteur: this.isRecruteur,
+            isAdmin: this.isAdmin
+        });
+
+        // Si recruteur, charger son entreprise
+        if (this.isRecruteur) {
+            this.loadEntrepriseRecruteur();
+        }
+    }
+
+    private loadEntrepriseRecruteur(): void {
+        const userId = this.authService.getCurrentUserId();
+        
+        if (!userId) {
+            console.warn('⚠️ Impossible de récupérer l\'ID utilisateur');
+            return;
+        }
+
+        // Récupérer toutes les entreprises et filtrer celle du recruteur
+        this.entrepriseService.getEntreprises({ page: 1, per_page: 1000 }).subscribe({
+            next: (response) => {
+                const entreprises = response?.data?.data ?? [];
+                
+                // Trouver l'entreprise dont le user_id correspond
+                this.entrepriseRecruteur = entreprises.find(
+                    (e: Entreprise) => e.user_id === userId
+                );
+                
+                if (this.entrepriseRecruteur) {
+                    console.log('✅ Entreprise du recruteur chargée:', this.entrepriseRecruteur.nom_entreprise);
+                } else {
+                    console.warn('⚠️ Aucune entreprise trouvée pour ce recruteur');
+                    this.messageService.add({
+                        severity: 'warn',
+                        summary: 'Attention',
+                        detail: 'Aucune entreprise associée à votre compte. Veuillez contacter l\'administrateur.',
+                        life: 8000
+                    });
+                }
+            },
+            error: (err) => {
+                console.error('❌ Erreur chargement entreprise recruteur:', err);
+            }
+        });
+    }
     
 }

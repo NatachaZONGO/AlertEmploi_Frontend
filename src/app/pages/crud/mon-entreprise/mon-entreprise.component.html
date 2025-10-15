@@ -169,7 +169,16 @@
             </div>
             <div class="info-item">
               <span class="info-label">Pays</span>
-              <span class="info-value">{{ entreprise?.pays || 'Non renseigné' }}</span>
+              <span class="info-value">
+                <!-- Si pays est un objet avec la relation -->
+                <ng-container *ngIf="entreprise?.pays && typeof entreprise?.pays === 'object'; else simpleCountry">
+                  {{ entreprise?.pays?.nom || 'Non renseigné' }}
+                </ng-container>
+                <!-- Si pays est juste une string -->
+                <ng-template #simpleCountry>
+                  {{ entreprise?.pays || 'Non renseigné' }}
+                </ng-template>
+              </span>
             </div>
           </div>
         </div>
@@ -209,6 +218,12 @@
               <span class="info-label">Dernière modification</span>
               <span class="info-value">
                 {{ entreprise?.updated_at | date:'dd/MM/yyyy à HH:mm' }}
+              </span>
+            </div>
+            <div class="info-item" *ngIf="entreprise?.user">
+              <span class="info-label">Géré par</span>
+              <span class="info-value">
+                {{ entreprise?.user?.prenom }} {{ entreprise?.user?.nom }}
               </span>
             </div>
           </div>
@@ -369,16 +384,22 @@
                 class="w-full" />
             </div>
 
+            <!-- ✅ DROPDOWN PAYS -->
             <div class="form-field">
-              <label for="pays" class="field-label">Pays</label>
-              <input 
-                pInputText 
-                id="pays"
-                [(ngModel)]="editForm.pays" 
-                name="pays"
-                placeholder="Burkina Faso"
-                class="w-full" />
-            </div>
+            <label for="pays" class="field-label">
+              <i class="pi pi-globe mr-1"></i>
+              Pays
+            </label>
+            <app-pays-dropdown
+              [paysList]="paysList"
+              [(ngModel)]="editForm.pays_id"
+              name="pays_id"
+              placeholder="Sélectionner un pays">
+            </app-pays-dropdown>
+            <small class="text-gray-500 text-xs mt-1">
+              <i class="pi pi-search mr-1"></i>Recherchez par nom ou code pays
+            </small>
+          </div>
           </div>
         </div>
 
@@ -417,5 +438,4 @@
         [loading]="loading" />
     </div>
   </ng-template>
-</p-dialog>.
-
+</p-dialog>

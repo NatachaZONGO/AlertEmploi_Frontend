@@ -167,264 +167,343 @@
   [dismissableMask]="true"
   [style]="{ width: '900px', maxWidth: '95vw' }"
   [breakpoints]="{ '960px': '95vw', '640px': '100vw' }"
+  styleClass="elegant-dialog"
   [header]="selectedOffre?.titre || 'Détail de l\'offre'">
 
   <ng-container *ngIf="selectedOffre as d">
-    <div class="space-y-3">
-      <div class="text-gray-600 text-sm">
-        {{ d.entreprise?.nom_entreprise || 'Entreprise' }} • {{ d.localisation || '—' }}
+    <div class="offer-details-wrapper">
+      <!-- En-tête élégant -->
+      <div class="offer-elegant-header">
+        <div class="offer-company-section">
+          <div class="company-icon">
+            <i class="pi pi-building"></i>
+          </div>
+          <div class="company-details">
+            <div class="company-name">{{ d.entreprise?.nom_entreprise || 'Entreprise' }}</div>
+            <div class="company-location">
+              <i class="pi pi-map-marker"></i>
+              <span>{{ d.localisation || '—' }}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="flex flex-wrap gap-2">
-        <p-tag *ngIf="d.type_contrat" [value]="d.type_contrat"></p-tag>
-        <p-tag *ngIf="$any(d.categorie)?.nom || d.categorie" [value]="$any(d.categorie)?.nom ?? (typeof d.categorie === 'string' ? d.categorie : '')"></p-tag>
-        <p-tag *ngIf="d.experience" [value]="d.experience"></p-tag>
-        <p-tag *ngIf="d.salaire" [value]="d.salaire + ' CFA'"></p-tag>
-        <p-tag *ngIf="isFeatured(d)" value="Vedette" severity="warn"></p-tag>
+      <!-- Tags et informations -->
+      <div class="offer-tags-wrapper">
+        <p-tag *ngIf="d.type_contrat" [value]="d.type_contrat" severity="info" styleClass="elegant-tag"></p-tag>
+        <p-tag *ngIf="$any(d.categorie)?.nom || d.categorie" 
+               [value]="$any(d.categorie)?.nom ?? (typeof d.categorie === 'string' ? d.categorie : '')" 
+               severity="success" 
+               styleClass="elegant-tag"></p-tag>
+        <p-tag *ngIf="d.experience" [value]="'Expérience: ' + d.experience" severity="warning" styleClass="elegant-tag"></p-tag>
+        <p-tag *ngIf="d.salaire" [value]="d.salaire + ' CFA'" styleClass="elegant-tag salary-tag"></p-tag>
+        <p-tag *ngIf="isFeatured(d)" value="⭐ Vedette" styleClass="elegant-tag featured-tag"></p-tag>
       </div>
 
-      <div class="offer-html" [innerHTML]="d.description || ''"></div>
+      <!-- Séparateur élégant -->
+      <div class="elegant-divider"></div>
 
-      <div class="details-footer">
-        <button pButton pRipple label="Postuler" icon="pi pi-send" (click)="postuler(d)"></button>
+      <!-- Description -->
+      <div class="offer-description-wrapper">
+        <h3 class="section-heading">
+          <i class="pi pi-file-edit"></i>
+          Description du poste
+        </h3>
+        <div class="offer-content-html" [innerHTML]="d.description || ''"></div>
+      </div>
+
+      <!-- Footer avec actions -->
+      <div class="offer-actions-footer">
+        <button 
+          pButton 
+          pRipple 
+          label="Fermer" 
+          icon="pi pi-times" 
+          class="p-button-text p-button-secondary elegant-btn-secondary"
+          (click)="detailsVisible=false">
+        </button>
+        <button 
+          pButton 
+          pRipple 
+          label="Postuler maintenant" 
+          icon="pi pi-send" 
+          class="elegant-btn-primary"
+          (click)="postuler(d)">
+        </button>
       </div>
     </div>
   </ng-container>
 </p-dialog>
 
-<!-- ======== POSTULER ======== -->
+<!-- ===================== DIALOG : POSTULER ===================== -->
 <p-dialog
   [(visible)]="applyVisible"
   [modal]="true"
   [draggable]="false"
   [resizable]="false"
   [dismissableMask]="true"
-  [style]="{ width: '760px', maxWidth: '95vw' }"
+  [style]="{ width: '800px', maxWidth: '95vw' }"
   [breakpoints]="{ '960px': '95vw', '640px': '100vw' }"
+  styleClass="elegant-dialog apply-elegant-dialog"
   [header]="'Postuler — ' + (selectedOffre?.titre || '')">
 
-  <form #applyForm="ngForm" class="apply-form" (ngSubmit)="submitApplication(applyForm)" novalidate>
-    <!-- Nom / Prénom -->
-    <div class="row two">
-      <div class="field">
-        <label>Nom *</label>
-        <input pInputText name="nom" [(ngModel)]="apply.nom" required [readonly]="isAuth" />
-      </div>
-      <div class="field">
-        <label>Prénom *</label>
-        <input pInputText name="prenom" [(ngModel)]="apply.prenom" required [readonly]="isAuth" />
-      </div>
+  <form #applyForm="ngForm" class="elegant-apply-form" (ngSubmit)="submitApplication(applyForm)" novalidate>
+    
+    <!-- Badge d'information -->
+    <div *ngIf="isAuth && isCandidat && candidatProfile" class="info-badge-elegant">
+      <i class="pi pi-check-circle"></i>
+      <span>Vos informations ont été pré-remplies automatiquement</span>
     </div>
 
-    <!-- Email -->
-    <div class="row">
-      <div class="field">
-        <label>Email *</label>
-        <input pInputText type="email" name="email" [(ngModel)]="apply.email" required email [readonly]="isAuth" />
-        <small class="muted" *ngIf="!isAuth">
-          Vous avez déjà un compte ? <a (click)="goLogin()" style="cursor:pointer;">Se connecter</a>
-        </small>
-      </div>
-    </div>
+    <!-- Section : Informations personnelles -->
+    <div class="elegant-section">
+      <h3 class="elegant-section-title">
+        <i class="pi pi-user"></i>
+        Informations personnelles
+      </h3>
 
-    <!-- Ville + Date de naissance (requis pour invités) -->
-    <div class="row two">
-      <div class="field">
-        <label>Ville *</label>
-        <input
-          pInputText
-          name="ville"
-          [(ngModel)]="apply.ville"
-          [required]="!isAuth"
-          autocomplete="address-level2"
-          placeholder="Ex: Ouagadougou"
-          [readonly]="isAuth"
-          #villeModel="ngModel"
-        />
-        <small class="text-red-500" *ngIf="!isAuth && villeModel.invalid && (villeModel.dirty || applyForm.submitted)">
-          La ville est obligatoire.
-        </small>
-      </div>
-
-      <div class="field" *ngIf="!isAuth">
-        <label>Date de naissance *</label>
-        <input
-          pInputText
-          type="date"
-          name="date_naissance"
-          [(ngModel)]="apply.date_naissance"
-          [required]="!isAuth"
-          [attr.max]="today"
-          #dobModel="ngModel"
-        />
-        <small class="text-red-500" *ngIf="dobModel.invalid && (dobModel.dirty || applyForm.submitted)">
-          La date de naissance est obligatoire.
-        </small>
-      </div>
-    </div>
-
-    <!-- Sexe (invité) -->
-    <div class="row" *ngIf="!isAuth">
-      <div class="field">
-        <label>Sexe</label>
-        <div class="flex items-center gap-3 flex-wrap">
-          <p-radioButton name="sexe" inputId="sxM" value="M" [(ngModel)]="apply.sexe"></p-radioButton>
-          <label for="sxM">Homme</label>
-
-          <p-radioButton name="sexe" inputId="sxF" value="F" [(ngModel)]="apply.sexe"></p-radioButton>
-          <label for="sxF">Femme</label>
-
-          <p-radioButton name="sexe" inputId="sxX" value="X" [(ngModel)]="apply.sexe"></p-radioButton>
-          <label for="sxX">Autre / Préfère ne pas dire</label>
+      <div class="elegant-row">
+        <div class="elegant-field">
+          <label class="elegant-label">Nom *</label>
+          <input pInputText name="nom" [(ngModel)]="apply.nom" required 
+                 [readonly]="isAuth && isCandidat" 
+                 class="elegant-input" 
+                 [class.readonly-elegant]="isAuth && isCandidat" />
+        </div>
+        <div class="elegant-field">
+          <label class="elegant-label">Prénom *</label>
+          <input pInputText name="prenom" [(ngModel)]="apply.prenom" required 
+                 [readonly]="isAuth && isCandidat" 
+                 class="elegant-input" 
+                 [class.readonly-elegant]="isAuth && isCandidat" />
         </div>
       </div>
-    </div>
 
-    <!-- Niveau d'étude (invité) -->
-    <div class="row" *ngIf="!isAuth">
-      <div class="field">
-        <label>Niveau d'étude</label>
-        <p-select
-          name="niveau_etude"
-          [(ngModel)]="apply.niveau_etude"
-          [options]="niveauEtudeOptions"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="Sélectionner"
-          [style]="{ width: '100%' }"
-        ></p-select>
-      </div>
-    </div>
-
-    <!-- Disponibilité (invité) -->
-    <div class="row" *ngIf="!isAuth">
-      <div class="field">
-        <label>Disponibilité</label>
-        <div class="flex items-center gap-3 flex-wrap">
-          <p-radioButton name="disponibilite" inputId="dispNow" value="immediate" [(ngModel)]="apply.disponibilite"></p-radioButton>
-          <label for="dispNow">Immédiate</label>
-
-          <p-radioButton name="disponibilite" inputId="disp1w" value="sous_1_semaine" [(ngModel)]="apply.disponibilite"></p-radioButton>
-          <label for="disp1w">Sous 1 semaine</label>
-
-          <p-radioButton name="disponibilite" inputId="disp2w" value="sous_2_semaines" [(ngModel)]="apply.disponibilite"></p-radioButton>
-          <label for="disp2w">Sous 2 semaines</label>
-
-          <p-radioButton name="disponibilite" inputId="disp1m" value="sous_1_mois" [(ngModel)]="apply.disponibilite"></p-radioButton>
-          <label for="disp1m">Sous 1 mois</label>
-
-          <p-radioButton name="disponibilite" inputId="dispOther" value="autre" [(ngModel)]="apply.disponibilite"></p-radioButton>
-          <label for="dispOther">Autre</label>
-
-          <input *ngIf="apply.disponibilite === 'autre'" pInputText name="disponibilite_autre" [(ngModel)]="apply.disponibilite_autre" placeholder="Ex: début octobre" style="min-width: 220px;" />
+      <div class="elegant-row">
+        <div class="elegant-field full">
+          <label class="elegant-label">Email *</label>
+          <input pInputText type="email" name="email" [(ngModel)]="apply.email" required email 
+                 [readonly]="isAuth && isCandidat" 
+                 class="elegant-input" 
+                 [class.readonly-elegant]="isAuth && isCandidat" />
+          <small class="elegant-hint" *ngIf="!isAuth">
+            Vous avez déjà un compte ? <a (click)="goLogin()" class="elegant-link">Se connecter</a>
+          </small>
         </div>
-        <small class="muted">Choisissez une option. Si "Autre", précisez un court texte.</small>
       </div>
-    </div>
 
-    <!-- Téléphone -->
-    <div class="row">
-      <div class="field">
-        <label>Numéro de téléphone</label>
-        <input pInputText name="phone" [(ngModel)]="apply.phone" placeholder="+226 70 00 00 00" [readonly]="isAuth" />
+      <div class="elegant-row">
+        <div class="elegant-field">
+          <label class="elegant-label">Ville *</label>
+          <input pInputText name="ville" [(ngModel)]="apply.ville" [required]="!isAuth" 
+                 autocomplete="address-level2" placeholder="Ex: Ouagadougou" 
+                 [readonly]="isAuth && isCandidat"
+                 class="elegant-input" 
+                 [class.readonly-elegant]="isAuth && isCandidat" 
+                 #villeModel="ngModel" />
+          <small class="elegant-error" *ngIf="!isAuth && villeModel.invalid && (villeModel.dirty || applyForm.submitted)">
+            La ville est obligatoire.
+          </small>
+        </div>
+
+        <div class="elegant-field" *ngIf="!isAuth">
+          <label class="elegant-label">Date de naissance *</label>
+          <input pInputText type="date" name="date_naissance" [(ngModel)]="apply.date_naissance" 
+                 [required]="!isAuth" [attr.max]="today" 
+                 class="elegant-input" #dobModel="ngModel" />
+          <small class="elegant-error" *ngIf="dobModel.invalid && (dobModel.dirty || applyForm.submitted)">
+            La date de naissance est obligatoire.
+          </small>
+        </div>
       </div>
-    </div>
 
-    <!-- Pays + Expérience -->
-    <div class="row two">
-      <div class="field">
-        <label>Pays</label>
-        <p-select
-          name="pays"
-          [(ngModel)]="apply.pays"
-          [options]="paysOptions"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="Sélectionner"
-          [filter]="true"
-          [virtualScroll]="true"
-          [virtualScrollItemSize]="38"
-          [style]="{ width: '100%' }">
-          <ng-template pTemplate="selectedItem" let-opt>
-            <div class="flex items-center gap-2" *ngIf="opt">
-              <img *ngIf="opt.flag" [src]="opt.flag" alt="" width="20" height="14" style="border-radius: 2px; border: 1px solid #e5e7eb" />
-              <span>{{ opt.label }}</span>
-              <small class="text-gray-500 ml-1">{{ opt.code }}</small>
+      <!-- Sexe (invité uniquement) -->
+      <div class="elegant-row" *ngIf="!isAuth">
+        <div class="elegant-field full">
+          <label class="elegant-label">Sexe</label>
+          <div class="elegant-radio-group">
+            <div class="elegant-radio-item">
+              <p-radioButton name="sexe" inputId="sxM" value="M" [(ngModel)]="apply.sexe"></p-radioButton>
+              <label for="sxM">Homme</label>
             </div>
-            <span *ngIf="!opt" class="text-gray-400">Sélectionner</span>
-          </ng-template>
-
-          <ng-template pTemplate="item" let-opt>
-            <div class="flex items-center gap-2">
-              <img *ngIf="opt.flag" [src]="opt.flag" alt="" width="20" height="14" style="border-radius: 2px; border: 1px solid #e5e7eb" />
-              <span>{{ opt.label }}</span>
-              <small class="text-gray-500 ml-2">{{ opt.code }}</small>
+            <div class="elegant-radio-item">
+              <p-radioButton name="sexe" inputId="sxF" value="F" [(ngModel)]="apply.sexe"></p-radioButton>
+              <label for="sxF">Femme</label>
             </div>
-          </ng-template>
-        </p-select>
-      </div>
-
-      <div class="field">
-        <label>Années d'expérience</label>
-        <p-inputNumber name="experience" [(ngModel)]="apply.experience" [min]="0" [max]="60" [useGrouping]="false" [style]="{ width: '100%' }"></p-inputNumber>
-      </div>
-    </div>
-
-    <!-- CV -->
-    <div class="row">
-      <label class="block font-medium mb-1">CV</label>
-      <div class="flex items-center gap-3 flex-wrap">
-        <p-radioButton name="cvChoice" inputId="cvExisting" value="existing" [(ngModel)]="apply.cvChoice" [disabled]="!isAuth"></p-radioButton>
-        <label for="cvExisting">Utiliser mon CV existant</label>
-
-        <p-radioButton name="cvChoice" inputId="cvUpload" value="upload" [(ngModel)]="apply.cvChoice"></p-radioButton>
-        <label for="cvUpload">Téléverser un CV</label>
-
-        <input *ngIf="apply.cvChoice === 'upload'" type="file" accept=".pdf,.doc,.docx" (change)="onApplyFile($event)" />
-      </div>
-      <small class="muted">PDF ou DOC, 5 Mo max.</small>
-    </div>
-
-    <!-- Lettre de motivation -->
-    <div class="row">
-      <div class="field">
-        <label>Lettre de motivation</label>
-
-        <div class="flex items-center gap-3 flex-wrap mb-2">
-          <p-radioButton name="lmChoice" inputId="lmText" value="text" [(ngModel)]="apply.lmChoice"></p-radioButton>
-          <label for="lmText">Saisir du texte</label>
-
-          <p-radioButton name="lmChoice" inputId="lmUpload" value="upload" [(ngModel)]="apply.lmChoice"></p-radioButton>
-          <label for="lmUpload">Téléverser un fichier</label>
-        </div>
-
-        <textarea *ngIf="apply.lmChoice === 'text'" pTextarea name="motivation" [(ngModel)]="apply.motivation" rows="5" autoResize="true" placeholder="Expliquez brièvement pourquoi vous êtes un bon candidat"></textarea>
-
-        <div *ngIf="apply.lmChoice === 'upload'">
-          <input type="file" accept=".pdf,.doc,.docx,.txt,.odt" (change)="onApplyLmFile($event)" />
-          <small class="muted block mt-1">PDF, DOC, DOCX, TXT ou ODT — 5 Mo max.</small>
+            <div class="elegant-radio-item">
+              <p-radioButton name="sexe" inputId="sxX" value="X" [(ngModel)]="apply.sexe"></p-radioButton>
+              <label for="sxX">Autre</label>
+            </div>
+          </div>
         </div>
       </div>
+
+      <div class="elegant-row" *ngIf="!isAuth">
+        <div class="elegant-field">
+          <label class="elegant-label">Niveau d'étude</label>
+          <p-select name="niveau_etude" [(ngModel)]="apply.niveau_etude" 
+                    [options]="niveauEtudeOptions" optionLabel="label" optionValue="value" 
+                    placeholder="Sélectionner" [style]="{ width: '100%' }" 
+                    styleClass="elegant-select"></p-select>
+        </div>
+      </div>
+
+      <!-- Disponibilité (invité uniquement) -->
+      <div class="elegant-row" *ngIf="!isAuth">
+        <div class="elegant-field full">
+          <label class="elegant-label">Disponibilité</label>
+          <div class="elegant-radio-group">
+            <div class="elegant-radio-item">
+              <p-radioButton name="disponibilite" inputId="dispNow" value="immediate" [(ngModel)]="apply.disponibilite"></p-radioButton>
+              <label for="dispNow">Immédiate</label>
+            </div>
+            <div class="elegant-radio-item">
+              <p-radioButton name="disponibilite" inputId="disp1w" value="sous_1_semaine" [(ngModel)]="apply.disponibilite"></p-radioButton>
+              <label for="disp1w">Sous 1 semaine</label>
+            </div>
+            <div class="elegant-radio-item">
+              <p-radioButton name="disponibilite" inputId="disp2w" value="sous_2_semaines" [(ngModel)]="apply.disponibilite"></p-radioButton>
+              <label for="disp2w">Sous 2 semaines</label>
+            </div>
+            <div class="elegant-radio-item">
+              <p-radioButton name="disponibilite" inputId="disp1m" value="sous_1_mois" [(ngModel)]="apply.disponibilite"></p-radioButton>
+              <label for="disp1m">Sous 1 mois</label>
+            </div>
+            <div class="elegant-radio-item">
+              <p-radioButton name="disponibilite" inputId="dispOther" value="autre" [(ngModel)]="apply.disponibilite"></p-radioButton>
+              <label for="dispOther">Autre</label>
+            </div>
+          </div>
+          <input *ngIf="apply.disponibilite === 'autre'" 
+                 pInputText name="disponibilite_autre" 
+                 [(ngModel)]="apply.disponibilite_autre" 
+                 placeholder="Ex: début octobre" 
+                 class="elegant-input mt-2" />
+        </div>
+      </div>
+
+      <div class="elegant-row">
+        <div class="elegant-field">
+          <label class="elegant-label">Téléphone</label>
+          <input pInputText name="phone" [(ngModel)]="apply.phone" 
+                 placeholder="+226 70 00 00 00" 
+                 [readonly]="isAuth && isCandidat" 
+                 class="elegant-input" 
+                 [class.readonly-elegant]="isAuth && isCandidat" />
+        </div>
+      </div>
+
+      <div class="elegant-row">
+        <div class="elegant-field">
+          <label class="elegant-label">Pays</label>
+          <p-select name="pays" [(ngModel)]="apply.pays" [options]="paysOptions" 
+                    optionLabel="label" optionValue="value" placeholder="Sélectionner" 
+                    [filter]="true" [virtualScroll]="true" [virtualScrollItemSize]="38" 
+                    [style]="{ width: '100%' }" styleClass="elegant-select">
+            <ng-template pTemplate="selectedItem" let-opt>
+              <div class="flex items-center gap-2" *ngIf="opt">
+                <img *ngIf="opt.flag" [src]="opt.flag" alt="" width="20" height="14" 
+                     style="border-radius: 2px; border: 1px solid #e5e7eb" />
+                <span>{{ opt.label }}</span>
+              </div>
+              <span *ngIf="!opt" class="text-gray-400">Sélectionner</span>
+            </ng-template>
+            <ng-template pTemplate="item" let-opt>
+              <div class="flex items-center gap-2">
+                <img *ngIf="opt.flag" [src]="opt.flag" alt="" width="20" height="14" 
+                     style="border-radius: 2px; border: 1px solid #e5e7eb" />
+                <span>{{ opt.label }}</span>
+              </div>
+            </ng-template>
+          </p-select>
+        </div>
+
+        <div class="elegant-field">
+          <label class="elegant-label">Années d'expérience</label>
+          <p-inputNumber name="experience" [(ngModel)]="apply.experience" 
+                         [min]="0" [max]="60" [useGrouping]="false" 
+                         [style]="{ width: '100%' }" styleClass="elegant-input"></p-inputNumber>
+        </div>
+      </div>
     </div>
 
-    <!-- Revue -->
-    <div class="row">
-      <p-checkbox inputId="reviewNow" name="reviewNow" binary="true" [(ngModel)]="apply.reviewNow"></p-checkbox>
-      <label for="reviewNow" class="ml-2">Vérifier ma candidature maintenant</label>
+    <!-- Section : Documents -->
+    <div class="elegant-section">
+      <h3 class="elegant-section-title">
+        <i class="pi pi-file"></i>
+        Documents requis
+      </h3>
+
+      <div class="elegant-row">
+        <div class="elegant-field full">
+          <label class="elegant-label">CV *</label>
+          <div class="elegant-radio-group mb-2">
+            <div class="elegant-radio-item">
+              <p-radioButton name="cvChoice" inputId="cvExisting" value="existing" 
+                            [(ngModel)]="apply.cvChoice" [disabled]="!isAuth"></p-radioButton>
+              <label for="cvExisting">Utiliser mon CV existant</label>
+            </div>
+            <div class="elegant-radio-item">
+              <p-radioButton name="cvChoice" inputId="cvUpload" value="upload" 
+                            [(ngModel)]="apply.cvChoice"></p-radioButton>
+              <label for="cvUpload">Téléverser un nouveau CV</label>
+            </div>
+          </div>
+          <input *ngIf="apply.cvChoice === 'upload'" type="file" accept=".pdf,.doc,.docx" 
+                 (change)="onApplyFile($event)" class="elegant-file-input" />
+          <small class="elegant-hint">PDF ou DOC, 5 Mo max.</small>
+        </div>
+      </div>
+
+      <div class="elegant-row">
+        <div class="elegant-field full">
+          <label class="elegant-label">Lettre de motivation</label>
+          <div class="elegant-radio-group mb-2">
+            <div class="elegant-radio-item">
+              <p-radioButton name="lmChoice" inputId="lmText" value="text" 
+                            [(ngModel)]="apply.lmChoice"></p-radioButton>
+              <label for="lmText">Saisir du texte</label>
+            </div>
+            <div class="elegant-radio-item">
+              <p-radioButton name="lmChoice" inputId="lmUpload" value="upload" 
+                            [(ngModel)]="apply.lmChoice"></p-radioButton>
+              <label for="lmUpload">Téléverser un fichier</label>
+            </div>
+          </div>
+
+          <textarea *ngIf="apply.lmChoice === 'text'" 
+                    pTextarea name="motivation" [(ngModel)]="apply.motivation" 
+                    rows="5" autoResize="true" 
+                    placeholder="Expliquez brièvement pourquoi vous êtes le candidat idéal..." 
+                    class="elegant-textarea"></textarea>
+
+          <div *ngIf="apply.lmChoice === 'upload'">
+            <input type="file" accept=".pdf,.doc,.docx,.txt,.odt" 
+                   (change)="onApplyLmFile($event)" class="elegant-file-input" />
+            <small class="elegant-hint">PDF, DOC, DOCX, TXT ou ODT — 5 Mo max.</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="elegant-row">
+        <div class="elegant-field full checkbox-elegant">
+          <p-checkbox inputId="reviewNow" name="reviewNow" binary="true" 
+                     [(ngModel)]="apply.reviewNow"></p-checkbox>
+          <label for="reviewNow" class="checkbox-elegant-label">
+            Vérifier ma candidature avant envoi
+          </label>
+        </div>
+      </div>
     </div>
 
-    <div class="footer">
-      <button pButton type="button" class="p-button-text" label="Annuler" (click)="applyVisible=false"></button>
-      <button
-        pButton
-        type="submit"
-        icon="pi pi-send"
-        label="Envoyer ma candidature"
-        [disabled]="
-          applyForm.invalid ||
-          (!isAuth && !apply.ville?.trim()) ||
-          (apply.cvChoice==='upload' && !cvFile)
-        ">
+    <!-- Footer -->
+    <div class="elegant-form-footer">
+      <button pButton type="button" label="Annuler" icon="pi pi-times" 
+              class="p-button-text p-button-secondary elegant-btn-secondary" 
+              (click)="applyVisible=false"></button>
+      <button pButton type="submit" label="Envoyer ma candidature" icon="pi pi-send" 
+              class="elegant-btn-primary"
+              [disabled]="applyForm.invalid || (!isAuth && !apply.ville?.trim()) || (apply.cvChoice==='upload' && !cvFile)">
       </button>
     </div>
   </form>
@@ -980,5 +1059,465 @@
 
 /* Si tu veux garder la même classe qu'avant pour la taille */
 .placeholder-image { display: none; } /* on masque l'ancien SVG si du cache traîne */
+/* ===== STYLES ÉLÉGANTS POUR LES DIALOGS ===== */
+  
+  /* Header du dialog - Bleu uni élégant */
+  :host ::ng-deep .elegant-dialog .p-dialog-header {
+    background: #111d9d;
+    color: #ffffff;
+    padding: 1.75rem 2rem;
+    border-bottom: none;
+    border-radius: 0.75rem 0.75rem 0 0;
+    box-shadow: 0 2px 8px rgba(17, 29, 157, 0.1);
+  }
 
+  :host ::ng-deep .elegant-dialog .p-dialog-header .p-dialog-title {
+    font-size: 1.375rem;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+  }
+
+  :host ::ng-deep .elegant-dialog .p-dialog-header .p-dialog-header-icons button {
+    color: #ffffff !important;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 0.5rem;
+    transition: all 0.3s ease;
+  }
+
+  :host ::ng-deep .elegant-dialog .p-dialog-header .p-dialog-header-icons button:hover {
+    background: rgba(255, 255, 255, 0.15) !important;
+  }
+
+  :host ::ng-deep .elegant-dialog .p-dialog-content {
+    padding: 2rem;
+    background: #ffffff;
+  }
+
+  :host ::ng-deep .elegant-dialog .p-dialog-footer {
+    padding: 1.5rem 2rem;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    border-radius: 0 0 0.75rem 0.75rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+  }
+
+  /* ===== DIALOG DÉTAILS OFFRE ===== */
+  .offer-details-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+  }
+
+  .offer-elegant-header {
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    padding: 1.75rem;
+    border-radius: 0.875rem;
+    border: 1px solid #bae6fd;
+  }
+
+  .offer-company-section {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  .company-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+    background: #111d9d;
+    color: #ffffff;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(17, 29, 157, 0.2);
+  }
+
+  .company-details {
+    flex: 1;
+  }
+
+  .company-name {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.01em;
+  }
+
+  .company-location {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+    color: #64748b;
+    font-weight: 500;
+  }
+
+  .company-location i {
+    color: #111d9d;
+    font-size: 0.875rem;
+  }
+
+  .offer-tags-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.875rem;
+  }
+
+  .elegant-tag {
+    font-weight: 600 !important;
+    padding: 0.5rem 1.125rem !important;
+    border-radius: 1.5rem !important;
+    font-size: 0.875rem !important;
+    letter-spacing: 0.01em !important;
+  }
+
+  .salary-tag {
+    background: #111d9d !important;
+    color: #ffffff !important;
+  }
+
+  .featured-tag {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%) !important;
+    color: #92400e !important;
+    font-weight: 700 !important;
+  }
+
+  .elegant-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, #e2e8f0 50%, transparent 100%);
+    margin: 0.5rem 0;
+  }
+
+  .offer-description-wrapper {
+    padding-top: 0.5rem;
+  }
+
+  .section-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 1.25rem;
+    letter-spacing: -0.01em;
+  }
+
+  .section-heading i {
+    color: #111d9d;
+    font-size: 1rem;
+  }
+
+  .offer-content-html {
+    font-size: 0.9375rem;
+    line-height: 1.75;
+    color: #475569;
+    font-weight: 400;
+  }
+
+  .offer-content-html p {
+    margin: 0.875rem 0;
+  }
+
+  .offer-content-html ul,
+  .offer-content-html ol {
+    margin: 0.875rem 0 0.875rem 1.75rem;
+  }
+
+  .offer-content-html li {
+    margin: 0.625rem 0;
+  }
+
+  .offer-content-html h1,
+  .offer-content-html h2,
+  .offer-content-html h3 {
+    margin: 1.75rem 0 0.875rem;
+    font-weight: 700;
+    color: #1e293b;
+    letter-spacing: -0.02em;
+  }
+
+  .offer-content-html h1 {
+    font-size: 1.5rem;
+  }
+
+  .offer-content-html h2 {
+    font-size: 1.25rem;
+  }
+
+  .offer-content-html h3 {
+    font-size: 1.0625rem;
+  }
+
+  .offer-actions-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  /* ===== DIALOG POSTULER ===== */
+  .elegant-apply-form {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  .info-badge-elegant {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    background: linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%);
+    color: #166534;
+    padding: 1.125rem 1.5rem;
+    border-radius: 0.875rem;
+    border: 1px solid #86efac;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    letter-spacing: 0.01em;
+  }
+
+  .info-badge-elegant i {
+    font-size: 1.375rem;
+  }
+
+  .elegant-section {
+    background: #f8fafc;
+    padding: 1.75rem;
+    border-radius: 0.875rem;
+    border: 1px solid #e2e8f0;
+  }
+
+  .elegant-section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 1.75rem;
+    padding-bottom: 0.875rem;
+    border-bottom: 2px solid #e2e8f0;
+    letter-spacing: -0.01em;
+  }
+
+  .elegant-section-title i {
+    color: #111d9d;
+    font-size: 1rem;
+  }
+
+  .elegant-row {
+    display: flex;
+    gap: 1.25rem;
+    margin-bottom: 1.375rem;
+  }
+
+  .elegant-field {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+
+  .elegant-field.full {
+    flex: 1 1 100%;
+  }
+
+  .elegant-label {
+    font-weight: 600;
+    color: #334155;
+    font-size: 0.9375rem;
+    letter-spacing: 0.01em;
+  }
+
+  .elegant-input,
+  .elegant-textarea {
+    width: 100%;
+    padding: 0.875rem 1.125rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 0.625rem;
+    font-size: 0.9375rem;
+    font-weight: 400;
+    color: #1e293b;
+    transition: all 0.3s ease;
+    background: #ffffff;
+  }
+
+  .elegant-input:focus,
+  .elegant-textarea:focus {
+    border-color: #111d9d;
+    box-shadow: 0 0 0 3px rgba(17, 29, 157, 0.08);
+    outline: none;
+  }
+
+  .readonly-elegant {
+    background: #f1f5f9;
+    cursor: not-allowed;
+    opacity: 0.75;
+    border-color: #cbd5e1;
+  }
+
+  .elegant-hint {
+    color: #64748b;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+    font-weight: 400;
+  }
+
+  .elegant-error {
+    color: #dc2626;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+    font-weight: 600;
+  }
+
+  .elegant-link {
+    color: #111d9d;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: all 0.3s ease;
+  }
+
+  .elegant-link:hover {
+    border-bottom-color: #111d9d;
+  }
+
+  .elegant-radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+  }
+
+  .elegant-radio-item {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+  }
+
+  .elegant-radio-item label {
+    cursor: pointer;
+    font-size: 0.9375rem;
+    color: #475569;
+    font-weight: 500;
+  }
+
+  .checkbox-elegant {
+    display: flex;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 0.875rem;
+  }
+
+  .checkbox-elegant-label {
+    font-size: 0.9375rem;
+    color: #475569;
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  .elegant-file-input {
+    padding: 0.875rem;
+    border: 2px dashed #cbd5e1;
+    border-radius: 0.625rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #ffffff;
+    font-size: 0.9375rem;
+  }
+
+  .elegant-file-input:hover {
+    border-color: #111d9d;
+    background: #f8fafc;
+  }
+
+  .elegant-form-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1.25rem;
+    padding-top: 1.75rem;
+    border-top: 2px solid #e2e8f0;
+  }
+
+  /* ===== BOUTONS ÉLÉGANTS ===== */
+  .elegant-btn-primary {
+    background: #111d9d !important;
+    border: none !important;
+    padding: 0.875rem 2rem !important;
+    font-weight: 700 !important;
+    font-size: 0.9375rem !important;
+    letter-spacing: 0.01em !important;
+    border-radius: 0.625rem !important;
+    box-shadow: 0 4px 12px rgba(17, 29, 157, 0.25) !important;
+    transition: all 0.3s ease !important;
+    color: #ffffff !important;
+  }
+
+  .elegant-btn-primary:not([disabled]):hover {
+    background: #0d1784 !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(17, 29, 157, 0.35) !important;
+  }
+
+  .elegant-btn-primary[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .elegant-btn-secondary {
+    color: #64748b !important;
+    font-weight: 600 !important;
+    font-size: 0.9375rem !important;
+  }
+
+  .elegant-btn-secondary:hover {
+    color: #1e293b !important;
+  }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 768px) {
+    .elegant-row {
+      flex-direction: column;
+    }
+
+    .elegant-radio-group {
+      flex-direction: column;
+    }
+
+    .company-icon {
+      width: 3rem;
+      height: 3rem;
+      font-size: 1.25rem;
+    }
+
+    .company-name {
+      font-size: 1.125rem;
+    }
+  }
+
+  /* ===== CUSTOMISATION PRIMENG ===== */
+  :host ::ng-deep .elegant-select .p-select {
+    border: 2px solid #e2e8f0 !important;
+    border-radius: 0.625rem !important;
+  }
+
+  :host ::ng-deep .elegant-select .p-select:not(.p-disabled):hover {
+    border-color: #cbd5e1 !important;
+  }
+
+  :host ::ng-deep .elegant-select .p-select:not(.p-disabled).p-focus {
+    border-color: #111d9d !important;
+    box-shadow: 0 0 0 3px rgba(17, 29, 157, 0.08) !important;
+  }
 </style>

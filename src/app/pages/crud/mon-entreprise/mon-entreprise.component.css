@@ -447,3 +447,168 @@
 .form-container-scroll::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 } 
+
+/* Dialog */
+::ng-deep .edit-dialog-moderne .p-dialog {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+::ng-deep .edit-dialog-moderne .p-dialog-header {
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+::ng-deep .edit-dialog-moderne .p-dialog-content {
+  padding: 0 !important;
+  height: calc(85vh - 140px);  /* ✅ Hauteur fixe */
+  overflow: hidden;             /* ✅ Pas de scroll sur le container principal */
+}
+
+.dialog-custom-header {
+  width: 100%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+.dialog-header-icon {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.dialog-header-icon i {
+  font-size: 1.75rem;
+}
+
+.dialog-header-text {
+  flex: 1;
+}
+
+/* ✅ CORRECTION : Permettre le scroll dans le formulaire */
+.form-container-scroll {
+  height: 100%;
+  max-height: calc(85vh - 200px);  /* ✅ Hauteur maximale */
+  overflow-y: auto;                 /* ✅ Activer le scroll vertical */
+  overflow-x: hidden;               /* ✅ Pas de scroll horizontal */
+  padding: 1.5rem 2rem;
+  background: #f9fafb;
+}
+
+.form-section {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.form-section-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #f3f4f6;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 1rem;  /* ✅ Espacement entre les champs */
+}
+
+.field-label {
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
+}
+
+.required {
+  color: #ef4444;
+}
+
+.input-error {
+  border-color: #ef4444 !important;
+}
+
+.error-message {
+  color: #ef4444;
+  font-size: 13px;
+}
+
+.dialog-footer-custom {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  padding: 1rem 2rem;
+  background: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* ✅ Scrollbar personnalisée pour le dialog */
+.form-container-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.form-container-scroll::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 4px;
+}
+
+.form-container-scroll::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 4px;
+}
+
+.form-container-scroll::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* ✅ Styles pour les grilles de formulaire */
+.grid {
+  display: grid;
+}
+
+.grid-cols-1 {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.gap-4 {
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .md\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ✅ Styles pour les inputs PrimeNG */
+::ng-deep .edit-dialog-moderne .p-inputtext,
+::ng-deep .edit-dialog-moderne .p-dropdown,
+::ng-deep .edit-dialog-moderne .p-inputtextarea {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+}
+
+::ng-deep .edit-dialog-moderne .p-inputtext:focus,
+::ng-deep .edit-dialog-moderne .p-dropdown:focus,
+::ng-deep .edit-dialog-moderne .p-inputtextarea:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+::ng-deep .edit-dialog-moderne .p-inputtextarea {
+  resize: vertical;
+  min-height: 100px;
+}

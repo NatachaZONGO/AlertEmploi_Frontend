@@ -66,6 +66,12 @@ export interface UpdateEntrepriseRequest {
   motif_rejet?: string;
 }
 
+interface Pays {
+  id: number;
+  nom: string;
+  code: string; 
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   message?: string;

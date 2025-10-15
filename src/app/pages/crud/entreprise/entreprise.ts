@@ -25,6 +25,9 @@ import { PRIME_NG_CONFIG, PrimeNG } from 'primeng/config';
 import { DropdownModule } from 'primeng/dropdown';
 import { imageUrl } from '../../../Share/const';
 import { forkJoin } from 'rxjs';
+import { PaysUtilsService } from '../../../Share/pays-utils/pays-utils.service';
+import { Pays } from '../pays/pays.model';
+import { PaysDropdownComponent } from '../../../Share/pays-utils/pays-dropdown.component';
 
 @Component({
   selector: 'app-entreprise',
@@ -51,6 +54,7 @@ import { forkJoin } from 'rxjs';
         FileUploadModule,
         TagModule,
         DropdownModule,
+        PaysDropdownComponent
 
     ],
   providers: [ConfirmationService, MessageService]
@@ -111,8 +115,9 @@ sanitizeMotif(val: unknown): string | undefined {
 }
 
   
-  pays: any[] = [];
+ 
   users: any[] = [];
+  listePays: Pays[] = [];
   selectedStatusFilter = '';
   
   // Pagination
@@ -123,7 +128,8 @@ sanitizeMotif(val: unknown): string | undefined {
   constructor(
     private entrepriseService: EntrepriseService,
     private messageService: MessageService,
-    private confirmationService: ConfirmationService
+    private confirmationService: ConfirmationService,
+    public paysUtils: PaysUtilsService
   ) {}
   
   ngOnInit() {
@@ -167,7 +173,12 @@ sanitizeMotif(val: unknown): string | undefined {
   this.entrepriseService.getPays().subscribe({
     next: (response) => {
       if (response) {
-        this.pays = response.map(p => ({ label: p.nom, value: p.id }));
+        this.listePays = response.map(p => ({ 
+          id: p.id,
+          nom: p.nom, 
+          code: p.code, 
+          value: p.id 
+        }));
       }
     },
     error: (error) => {

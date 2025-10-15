@@ -1,6 +1,7 @@
-import { Component, OnDestroy, OnInit, ViewChild, signal, Inject, PLATFORM_ID } from '@angular/core';
-import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { Component, OnDestroy, OnInit, ViewChild, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 
 import { Subject } from 'rxjs';
 import { finalize, takeUntil } from 'rxjs/operators';
@@ -17,20 +18,23 @@ import { ButtonModule } from 'primeng/button';
 import { RippleModule } from 'primeng/ripple';
 import { TooltipModule } from 'primeng/tooltip';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { IconFieldModule } from 'primeng/iconfield';
+import { InputIconModule } from 'primeng/inputicon';
+import { TextareaModule } from 'primeng/textarea';
 import { ConfirmationService, MessageService } from 'primeng/api';
+
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 import { Candidature } from './candidature.model';
 import { CandidatureService } from './candidature.service';
-import { IconFieldModule } from 'primeng/iconfield';
-import { InputIconModule } from 'primeng/inputicon';
-import { RouterModule } from '@angular/router';
-import { BackendURL } from '../../../Share/const';
-import { TextareaModule } from 'primeng/textarea';
 import { CanSeeDirective } from '../../../Share/can_see/can_see.directive';
+import { AuthService } from '../../auth/auth.service';
 
-interface Column { field: string; header: string; }
+interface Column { 
+  field: string; 
+  header: string; 
+}
 
 @Component({
   selector: 'app-candidature',
@@ -39,6 +43,7 @@ interface Column { field: string; header: string; }
   imports: [
     CommonModule,
     FormsModule,
+    RouterModule,
     // PrimeNG
     TableModule,
     ToolbarModule,
@@ -54,7 +59,6 @@ interface Column { field: string; header: string; }
     ConfirmDialogModule,
     InputIconModule,
     IconFieldModule,
-    RouterModule,
     TextareaModule,
     CanSeeDirective
   ],
@@ -68,11 +72,17 @@ export class CandidaturesComponent implements OnInit, OnDestroy {
   @ViewChild('dt') dt!: Table;
 
   // Data
-  candidatures = signal<Candidature[]>([]);
+  candidatures = signal<any[]>([]);
   offresOptions: { label: string; value: number }[] = [];
   selectedOffreId: number | null = null;
 
-  // Table
+  // User role
+  userRole = '';
+  isRecruteur = false;
+  isCandidat = false;
+  isAdmin = false;
+
+  // Table columns
   cols: Column[] = [
     { field: 'fullName', header: 'Candidat' },
     { field: 'email', header: 'Email' },
@@ -88,9 +98,9 @@ export class CandidaturesComponent implements OnInit, OnDestroy {
     { label: 'Refusée', value: 'refusee' }
   ];
 
-  // Détail
+  // Dialogs
   detailDialog = false;
-  current!: any; // mapForView enrichit l’objet
+  current: any;
   modifyDialog = false;
   currentToModify?: any;
   nouveauStatut?: string;
@@ -98,190 +108,213 @@ export class CandidaturesComponent implements OnInit, OnDestroy {
 
   constructor(
     private candService: CandidatureService,
+    private authService: AuthService,
     private message: MessageService,
-    private confirmationService: ConfirmationService,
-    @Inject(PLATFORM_ID) private platformId: Object
+    private confirmationService: ConfirmationService
   ) {}
 
   ngOnInit(): void {
+    // Détecter le rôle
+    this.userRole = this.authService.getCurrentUserRole()?.toLowerCase() || '';
+    this.isRecruteur = this.userRole === 'recruteur';
+    this.isCandidat = this.userRole === 'candidat';
+    this.isAdmin = this.userRole === 'administrateur' || this.userRole === 'admin';
+
+    console.log('🔍 Rôle détecté:', {
+      userRole: this.userRole,
+      isRecruteur: this.isRecruteur,
+      isCandidat: this.isCandidat,
+      isAdmin: this.isAdmin
+    });
+
     this.loadOffresAndData();
   }
 
-  ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
 
-  // ---------- Load ----------
- private loadOffresAndData(): void {
-  this.loading.set(true);
+  // ==================== CHARGEMENT ====================
 
-  this.candService.getOffresLight()
-    .pipe(takeUntil(this.destroy$))
-    .subscribe({
-      next: (offres: any) => {
-        const offresList = Array.isArray(offres) ? offres : (offres?.data || []);
-        this.offresOptions = offresList.map((o: any) => ({ label: o.titre, value: o.id }));
-        this.loadCandidatures(); // charge ensuite
-      },
-      error: () => {
-        this.loadCandidatures(); // essaie quand même
-      }
-    });
-}
+  private loadOffresAndData(): void {
+    this.loading.set(true);
 
-
+    this.candService.getOffresLight()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (offres: any) => {
+          const offresList = Array.isArray(offres) ? offres : (offres?.data || []);
+          this.offresOptions = offresList.map((o: any) => ({ 
+            label: o.titre, 
+            value: o.id 
+          }));
+          this.loadCandidatures();
+        },
+        error: () => {
+          this.loadCandidatures();
+        }
+      });
+  }
 
   loadCandidatures(): void {
-  this.loading.set(true);
+    this.loading.set(true);
+    console.log('📡 Chargement candidatures...');
 
-  const source$ = this.selectedOffreId
-    ? this.candService.getByOffre(this.selectedOffreId)
-    : this.candService.getCandidaturesByRole(); // <- renvoie Observable<any[]>
+    const source$ = this.selectedOffreId
+      ? this.candService.getByOffre(this.selectedOffreId)
+      : this.candService.getCandidaturesByRole();
 
-  source$
-    .pipe(
-      takeUntil(this.destroy$),
-      finalize(() => this.loading.set(false))
-    )
-    .subscribe({
-      next: (rows: any[]) => {
-        // rows est déjà un tableau
-        this.candidatures.set(this.mapForView(rows));
-      },
-      error: (e) => {
-        console.error('loadCandidatures error:', e);
-        const msg =
-          e?.status === 401 ? 'Non authentifié (merci de vous reconnecter)' :
-          e?.status === 403 ? 'Accès refusé' :
-          'Erreur lors du chargement des candidatures';
-        this.toastError(msg);
-        this.candidatures.set([]);
-      }
-    });
-}
-
-
-
-
-  // Helper: garantit un URL absolu vers /api/candidatures/{id}/download/{type}
-private buildApiDownload(id: number, type: 'cv' | 'lm'): string {
-  // BackendURL doit pointer vers l’API, ex: http://127.0.0.1:8000/api/
-  // On normalise un éventuel trailing slash.
-  const base = BackendURL.endsWith('/') ? BackendURL.slice(0, -1) : BackendURL;
-  return `${base}/candidatures/${id}/download/${type}`;
-}
-
-private api(path: string): string {
-  const base = String(BackendURL).replace(/\/+$/,'');           // enlève les / en trop en fin
-  const p = String(path).replace(/^\/+/, '');                   // enlève les / en trop en début
-  return `${base}/${p}`;
-}
-// Normalise une URL potentiellement "storage/..." renvoyée par l'API
-private normalizeFileUrl(pathOrUrl?: string | null): string | null {
-  if (!pathOrUrl) return null;
-  const p = String(pathOrUrl);
-  if (p.startsWith('http://') || p.startsWith('https://')) return p;
-  // si l’API renvoie "storage/...."
-  if (p.startsWith('storage/')) {
-    const base = BackendURL.endsWith('/') ? BackendURL : BackendURL + '/';
-    return `${base}${p}`;
+    source$
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.loading.set(false);
+          console.log('🏁 Fin chargement');
+        })
+      )
+      .subscribe({
+        next: (rows: any[]) => {
+          console.log('✅ Données reçues:', rows);
+          console.log('📊 Nombre de candidatures:', rows.length);
+          
+          if (Array.isArray(rows)) {
+            const mapped = this.mapForView(rows);
+            this.candidatures.set(mapped);
+            console.log('✅ Candidatures mappées:', mapped.length);
+            console.log('📦 Première candidature:', mapped[0]);
+          } else {
+            console.error('❌ Les données ne sont pas un tableau');
+            this.candidatures.set([]);
+          }
+        },
+        error: (e) => {
+          console.error('❌ Erreur loadCandidatures:', e);
+          const msg =
+            e?.status === 401 ? 'Non authentifié (merci de vous reconnecter)' :
+            e?.status === 403 ? 'Accès refusé' :
+            'Erreur lors du chargement des candidatures';
+          this.toastError(msg);
+          this.candidatures.set([]);
+        }
+      });
   }
-  // sinon on suppose que c’est un chemin relatif vers disque public
-  const base = BackendURL.endsWith('/') ? BackendURL : BackendURL + '/';
-  return `${base}storage/${p}`;
-}
 
-private mapForView(list: Candidature[]): any[] {
-  return list.map((c: any) => {
-    const id = c.id as number;
+  // ==================== MAPPING ====================
 
-    // URLs renvoyées par l'API (si déjà présentes)
-    const apiCvUrl = c.cv_url as string | null;
-    const apiLmUrl = c.lm_url as string | null;
+  /**
+   * Transforme les données backend pour l'affichage
+   * Le backend renvoie maintenant : candidat_nom, candidat_email, candidat_telephone, offre_titre, etc.
+   */
+  private mapForView(list: any[]): any[] {
+    return list.map((c: any) => {
+      console.log('🔄 Mapping candidature:', c.id);
 
-    // Indices qu'un fichier LM existe (colonne dédiée ou fallback "[file] path")
-    const lmText: string = c.lettre_motivation || '';
-    const hasLmFileByText = lmText.startsWith('[file] ');
-    const hasLmFileByColumn = !!c.lettre_motivation_fichier;
+      // Le backend renvoie déjà les bonnes propriétés
+      const fullName = c.candidat_nom || c.fullName || '—';
+      const email = c.candidat_email || c.email || '—';
+      const telephone = c.candidat_telephone || c.telephone || '—';
+      const offreTitre = c.offre_titre || c.offreTitre || '—';
+      
+      // URLs de téléchargement (déjà fournies par le backend)
+      const cv_dl = c.cv_url || null;
+      const lm_dl = c.lm_url || null;
 
-    // Construit des liens vers les routes API de download
-    const cv_dl =
-      apiCvUrl ??
-      (id && c.cv ? this.api(`candidatures/${id}/download/cv`) : null);
+      // Texte de la lettre de motivation
+      const motivationText = c.lettre_motivation && !c.lettre_motivation.startsWith('[file]')
+        ? c.lettre_motivation
+        : '';
 
-    const lm_dl =
-      apiLmUrl ??
-      (id && (hasLmFileByColumn || hasLmFileByText)
-        ? this.api(`candidatures/${id}/download/lm`)
-        : null);
+      // Date formatée
+      const created_at = c.created_at 
+        ? new Date(c.created_at).toLocaleDateString('fr-FR')
+        : '—';
 
-    // Si fichier LM => on masque le texte
-    const motivationText = lm_dl ? '' : lmText;
+      return {
+        ...c, // Garde toutes les propriétés originales
+        fullName,
+        email,
+        telephone,
+        offreTitre,
+        created_at,
+        motivationText,
+        cv_dl,
+        lm_dl
+      };
+    });
+  }
 
-    return {
-      ...c,
-      fullName: this.getFullName(c),
-      email: this.getEmail(c),
-      telephone: this.getTelephone(c),
-      offreTitre: c.offre?.titre ?? '—',
-      created_at: c.created_at ? new Date(c.created_at).toLocaleDateString('fr-FR') : '—',
-      motivationText,
-      cv_dl,
-      lm_dl
-    };
-  });
-}
+  // ==================== FILTRES ====================
 
+  onOffreChange(): void {
+    this.loadCandidatures();
+  }
 
+  onGlobalFilter(event: Event): void {
+    this.dt.filterGlobal((event.target as HTMLInputElement).value, 'contains');
+  }
 
-  // Ouvre dans un nouvel onglet
-  openInNewTab(url?: string) {
+  // ==================== DÉTAILS ====================
+
+  openDetail(c: any): void {
+    console.log('👁️ Ouvrir détails:', c);
+    this.current = c;
+    this.detailDialog = true;
+  }
+
+  // ==================== TÉLÉCHARGEMENTS ====================
+
+  openInNewTab(url?: string): void {
     if (!url) return;
     const w = window.open(url, '_blank', 'noopener,noreferrer');
     if (w) w.opener = null;
   }
 
-  downloadCV(c: any) {
-    if (!c?.cv_dl) return this.toastError('Aucun CV disponible');
+  downloadCV(c: any): void {
+    if (!c?.cv_dl) {
+      return this.toastError('Aucun CV disponible');
+    }
+    console.log('📥 Téléchargement CV:', c.cv_dl);
     this.openInNewTab(c.cv_dl);
   }
 
-  downloadLM(c: any) {
-    if (!c?.lm_dl) return this.toastError('Aucune lettre (fichier) disponible');
+  downloadLM(c: any): void {
+    if (!c?.lm_dl) {
+      return this.toastError('Aucune lettre (fichier) disponible');
+    }
+    console.log('📥 Téléchargement LM:', c.lm_dl);
     this.openInNewTab(c.lm_dl);
   }
 
-  downloadWPForm(c: any) {
-  const esc = (s: any) =>
-    (s ?? '').toString()
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+  downloadWPForm(c: any): void {
+    const esc = (s: any) =>
+      (s ?? '').toString()
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 
-  const origin =
-    typeof window !== 'undefined' && window.location?.origin
+    const origin = typeof window !== 'undefined' && window.location?.origin
       ? window.location.origin
-      : 'https://alerte-emploi.example'; // optionnel fallback
+      : 'https://alerte-emploi.example';
 
-  const hasLmFile = !!c?.lm_dl;
-  const lmBlock = hasLmFile
-    ? `
-      <div class="value">
-        <a href="${c.lm_dl}" target="_blank" rel="noopener" class="file-link">
-          Télécharger la lettre de motivation
-        </a>
-      </div>`
-    : `
-      <div class="value pre">${esc(c?.motivationText || '—')}</div>`;
+    const hasLmFile = !!c?.lm_dl;
+    const lmBlock = hasLmFile
+      ? `<div class="value">
+           <a href="${c.lm_dl}" target="_blank" rel="noopener" class="file-link">
+             Télécharger la lettre de motivation
+           </a>
+         </div>`
+      : `<div class="value pre">${esc(c?.motivationText || '—')}</div>`;
 
-  const html = `<!doctype html>
+    const html = `<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<title>Candidature</title>
+<title>Candidature - ${esc(c?.fullName || 'Candidat')}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  /* Layout & card */
   body { margin:0; background:#eceff3; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:#111827; }
   .wrap { max-width:800px; margin:32px auto; padding:0 16px; }
   .card { background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:28px; }
@@ -289,22 +322,14 @@ private mapForView(list: Candidature[]): any[] {
   .label { font-weight:600; }
   .value { margin-top:10px; }
   .sep { height:1px; background:#e5e7eb; margin:22px 0; }
-
-  /* Typo */
   a { color:#2563eb; text-decoration:none; }
   a:hover { text-decoration:underline; }
-  .email { color:#ea580c; }        /* orange pour l'email */
+  .email { color:#ea580c; }
   .muted { color:#6b7280; }
-
-  /* Pre-like block for LM text */
   .pre { white-space:pre-wrap; line-height:1.6; }
-
-  /* File links */
   .files ul { margin:8px 0 0 18px; padding:0; }
   .files li { margin:6px 0; }
   .file-link { color:#2563eb; }
-
-  /* Footer */
   .footer { text-align:center; margin-top:18px; }
 </style>
 </head>
@@ -315,37 +340,27 @@ private mapForView(list: Candidature[]): any[] {
         <div class="label">Nom & Prénom(s)</div>
         <div class="value">${esc(c?.fullName || '—')}</div>
       </div>
-
       <div class="sep"></div>
-
       <div class="row">
         <div class="label">Email</div>
         <div class="value"><a href="mailto:${esc(c?.email || '')}" class="email">${esc(c?.email || '—')}</a></div>
       </div>
-
       <div class="sep"></div>
-
       <div class="row">
         <div class="label">Numéro de téléphone</div>
         <div class="value">${esc(c?.telephone || '—')}</div>
       </div>
-
       <div class="sep"></div>
-
       <div class="row">
         <div class="label">Offre</div>
         <div class="value">${esc(c?.offreTitre || '—')}</div>
       </div>
-
       <div class="sep"></div>
-
       <div class="row">
         <div class="label">Lettre de motivation</div>
         ${lmBlock}
       </div>
-
       <div class="sep"></div>
-
       <div class="row files">
         <div class="label">Fichiers</div>
         <ul>
@@ -354,72 +369,28 @@ private mapForView(list: Candidature[]): any[] {
           ${!c?.cv_dl && !c?.lm_dl ? '<li class="muted">Aucun fichier joint</li>' : ''}
         </ul>
       </div>
-
       <div class="sep"></div>
-
       <div class="footer muted">
         Envoyé depuis
-        <a href="${origin}" target="_blank" rel="noopener">AlerteEmploi&amp;Offres</a>
+        <a href="${origin}" target="_blank" rel="noopener">AlerteEmploi&Offres</a>
       </div>
     </div>
   </div>
 </body>
 </html>`;
 
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const win = window.open(url, '_blank', 'noopener,noreferrer');
-  if (win) win.opener = null;
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
-
-
-
-  private buildFileUrl(pathOrUrl?: string | null): string | null {
-    if (!pathOrUrl) return null;
-    const p = String(pathOrUrl);
-    if (p.startsWith('http://') || p.startsWith('https://')) return p;
-    // stocké via Storage::disk('public')->url('...') => souvent "storage/xxx"
-    if (p.startsWith('storage/')) return `${BackendURL}${p}`;
-    return `${BackendURL}storage/${p}`;
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank', 'noopener,noreferrer');
+    if (win) win.opener = null;
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
-  // Méthodes helper pour extraire les données
-  private getFullName(c: Candidature): string {
-    if (c.candidat?.user) {
-      const prenom = (c.candidat.user as any).prenom || (c.candidat.user as any).firstname || '';
-      const nom = (c.candidat.user as any).nom || (c.candidat.user as any).lastname || '';
-      return `${prenom} ${nom}`.trim() || '—';
-    }
-    return '—';
-  }
+  // ==================== EXPORTS ====================
 
-  private getEmail(c: Candidature): string {
-    return (c.candidat?.user as any)?.email || '—';
+  exportCSV(): void {
+    this.dt?.exportCSV();
   }
-
-  private getTelephone(c: Candidature): string {
-    const u: any = c.candidat?.user;
-    return u?.telephone || u?.phone || '—';
-  }
-
-  // ---------- Filters ----------
-  onOffreChange(): void {
-    this.loadCandidatures();
-  }
-
-  onGlobalFilter(event: Event): void {
-    this.dt.filterGlobal((event.target as HTMLInputElement).value, 'contains');
-  }
-
-  // ---------- Detail ----------
-  openDetail(c: any): void {
-    this.current = c;
-    this.detailDialog = true;
-  }
-
-  // ---------- Exports ----------
-  exportCSV(): void { this.dt?.exportCSV(); }
 
   exportPDF(): void {
     const doc = new jsPDF();
@@ -439,31 +410,19 @@ private mapForView(list: Candidature[]): any[] {
     doc.save('candidatures.pdf');
   }
 
-  // ---------- Helpers ----------
-  getSeverity(statut?: string) {
-    switch (statut) {
-      case 'acceptee': return 'success';
-      case 'en_attente': return 'warn';
-      case 'refusee': return 'danger';
-      default: return 'secondary';
-    }
-  }
-
-  private toastError(detail: string) {
-    this.message.add({ severity: 'error', summary: 'Erreur', detail, life: 5000 });
-  }
-
-  private toastSuccess(detail: string) {
-    this.message.add({ severity: 'success', summary: 'Succès', detail, life: 3000 });
-  }
-
+  // ==================== ACTIONS ====================
 
   changerStatut(candidature: any, nouveauStatut: 'acceptee' | 'refusee'): void {
     if (!candidature.id) return;
 
+    console.log(`🔄 Changement statut ${candidature.id} vers ${nouveauStatut}`);
+
     this.loading.set(true);
     this.candService.updateStatut(candidature.id, nouveauStatut)
-      .pipe(takeUntil(this.destroy$), finalize(() => this.loading.set(false)))
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => this.loading.set(false))
+      )
       .subscribe({
         next: () => {
           this.toastSuccess(`Candidature ${nouveauStatut === 'acceptee' ? 'acceptée' : 'refusée'}`);
@@ -485,8 +444,11 @@ private mapForView(list: Candidature[]): any[] {
     if (!this.currentToModify || !this.nouveauStatut) return;
 
     this.loading.set(true);
-    this.candService.updateStatut(this.currentToModify.id!, this.nouveauStatut)
-      .pipe(takeUntil(this.destroy$), finalize(() => this.loading.set(false)))
+    this.candService.updateStatut(this.currentToModify.id, this.nouveauStatut, this.motifRefus)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => this.loading.set(false))
+      )
       .subscribe({
         next: () => {
           this.toastSuccess(`Statut modifié vers "${this.nouveauStatut}"`);
@@ -506,8 +468,11 @@ private mapForView(list: Candidature[]): any[] {
       rejectLabel: 'Non',
       accept: () => {
         this.loading.set(true);
-        this.candService.delete(candidature.id!)
-          .pipe(takeUntil(this.destroy$), finalize(() => this.loading.set(false)))
+        this.candService.delete(candidature.id)
+          .pipe(
+            takeUntil(this.destroy$),
+            finalize(() => this.loading.set(false))
+          )
           .subscribe({
             next: () => {
               this.toastSuccess('Candidature supprimée');
@@ -519,25 +484,37 @@ private mapForView(list: Candidature[]): any[] {
     });
   }
 
-  canReapply(candidature: any): boolean {
-    return candidature.statut === 'refusee';
+  // ==================== HELPERS ====================
+
+  getSeverity(statut?: string): string {
+    switch (statut?.toLowerCase()) {
+      case 'acceptee':
+        return 'success';
+      case 'en_attente':
+      case 'en attente':
+        return 'warn';
+      case 'refusee':
+        return 'danger';
+      default:
+        return 'secondary';
+    }
   }
 
-  reapply(candidature: any): void {
-    console.log('Postuler à nouveau pour:', candidature);
+  private toastError(detail: string): void {
+    this.message.add({ 
+      severity: 'error', 
+      summary: 'Erreur', 
+      detail, 
+      life: 5000 
+    });
   }
 
-  openPostulerDialog(): void {
-    console.log('Ouvrir dialog de candidature');
-  }
-
-  // -------- Téléchargements fichiers --------
-  
-
-
-  private escapeHtml(s: string): string {
-    return (s ?? '').toString()
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  private toastSuccess(detail: string): void {
+    this.message.add({ 
+      severity: 'success', 
+      summary: 'Succès', 
+      detail, 
+      life: 3000 
+    });
   }
 }

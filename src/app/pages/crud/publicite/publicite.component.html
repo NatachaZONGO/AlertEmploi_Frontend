@@ -70,7 +70,7 @@
       <th pSortableColumn="titre" style="min-width:200px">
         Titre <p-sortIcon field="titre"></p-sortIcon>
       </th>
-      <th pSortableColumn="entreprise.nom_entreprise" style="min-width:180px">
+      <th pSortableColumn="entreprise.nom_entreprise" style="min-width:180px" *canSee="['Administrateur']">
         Entreprise <p-sortIcon field="entreprise.nom_entreprise"></p-sortIcon>
       </th>
       <th style="min-width:200px">Média</th>
@@ -95,7 +95,7 @@
         </div>
       </td>
 
-      <td style="min-width:180px">
+      <td style="min-width:180px" *canSee="['Administrateur']">
         {{ publicite.entreprise?.nom_entreprise || '—' }}
       </td>
 
@@ -266,7 +266,31 @@
             <label for="entreprise" class="field-label">
               Entreprise <span class="required">*</span>
             </label>
+            
+            <!-- ✅ SI RECRUTEUR : Afficher en lecture seule -->
+            <div *ngIf="isRecruteur && entrepriseRecruteur" class="entreprise-readonly">
+              <div class="input-readonly-container">
+                <i class="pi pi-building text-blue-600 mr-2"></i>
+                <span class="font-semibold">{{ entrepriseRecruteur.nom_entreprise }}</span>
+                <p-tag value="Mon entreprise" severity="success" styleClass="ml-auto"></p-tag>
+              </div>
+              <small class="text-gray-500 text-xs mt-1">
+                <i class="pi pi-lock mr-1"></i>
+                Ce champ est automatiquement rempli avec votre entreprise
+              </small>
+            </div>
+
+            <!-- ✅ SI RECRUTEUR SANS ENTREPRISE : Afficher avertissement -->
+            <div *ngIf="isRecruteur && !entrepriseRecruteur" class="entreprise-warning">
+              <div class="warning-box">
+                <i class="pi pi-exclamation-triangle"></i>
+                <span>Aucune entreprise associée à votre compte. Veuillez contacter l'administrateur.</span>
+              </div>
+            </div>
+
+            <!-- ✅ SI ADMIN : Afficher le dropdown normal -->
             <p-dropdown
+              *ngIf="isAdmin"
               id="entreprise"
               [options]="entreprises"
               [(ngModel)]="publicite.entreprise_id"
@@ -278,7 +302,9 @@
               styleClass="w-full"
               [class.input-error]="submitted && !publicite.entreprise_id">
             </p-dropdown>
-            <small class="error-message" *ngIf="submitted && !publicite.entreprise_id">
+            
+            <!-- Message d'erreur -->
+            <small class="error-message" *ngIf="submitted && !publicite.entreprise_id && isAdmin">
               L'entreprise est obligatoire
             </small>
           </div>

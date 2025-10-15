@@ -83,6 +83,13 @@ export class AppMenu {
             routerLink: ['/pages'],
             items: [
                 {
+                    label: 'Mon Entreprise',
+                    icon: 'pi pi-fw pi-building',
+                    routerLink: ['/pages/mon-entreprise'],
+                    roles: ['Recruteur']  
+                     
+                },
+                {
                     label: 'Offres',
                     icon: 'pi pi-fw pi-tags',
                     routerLink: ['/pages/offre'],
@@ -94,13 +101,7 @@ export class AppMenu {
                     routerLink: ['/pages/candidature'],
                     roles: ['Administrateur', 'Recruteur', 'Candidat']  // ← Ajoutez les rôles requis
                 },
-                {
-                    label: 'Mon Entreprise',
-                    icon: 'pi pi-fw pi-building',
-                    routerLink: ['/pages/mon-entreprise'],
-                    roles: ['Recruteur']  
-                     
-                },
+                
                 {
                     label: 'Entreprises',
                     icon: 'pi pi-fw pi-building',
@@ -180,6 +181,7 @@ export class AppMenu {
                         {
                             label: 'Déconnexion',
                             icon: 'pi pi-fw pi-lock',
+                            routerLink: ['/deconnexion'],
                             command: () => this.authService.logout(),
                         },
                     ],

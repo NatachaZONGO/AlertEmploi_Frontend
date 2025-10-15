@@ -2,8 +2,10 @@
 
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
 
+  <!-- ========== STATISTIQUES ADMINISTRATEUR ========== -->
+  
   <!-- Utilisateurs -->
-  <div class="card">
+  <div class="card" *canSee="['Administrateur']">
     <div class="flex justify-between items-center">
       <div>
         <span class="block text-muted-color font-medium mb-2">Utilisateurs</span>
@@ -16,7 +18,7 @@
   </div>
 
   <!-- Utilisateurs en ligne -->
-  <div class="card">
+  <div class="card" *canSee="['Administrateur']">
     <div class="flex justify-between items-center">
       <div>
         <span class="block text-muted-color font-medium mb-2">Connectés maintenant</span>
@@ -28,8 +30,8 @@
     </div>
   </div>
 
-  <!-- Entreprises -->
-  <div class="card">
+  <!-- Entreprises (Admin uniquement) -->
+  <div class="card" *canSee="['Administrateur']">
     <div class="flex justify-between items-center">
       <div>
         <span class="block text-muted-color font-medium mb-2">Entreprises</span>
@@ -41,11 +43,13 @@
     </div>
   </div>
 
-  <!-- Offres totales -->
-  <div class="card">
+  <!-- Total Offres (Admin voit toutes, Recruteur voit les siennes) -->
+  <div class="card" *canSee="['Administrateur', 'Recruteur']">
     <div class="flex justify-between items-center">
       <div>
-        <span class="block text-muted-color font-medium mb-2">Total Offres</span>
+        <span class="block text-muted-color font-medium mb-2">
+          {{ isRecruteur ? 'Mes Offres' : 'Total Offres' }}
+        </span>
         <div class="text-surface-900 dark:text-surface-0 font-medium text-2xl">{{ totalOffres }}</div>
       </div>
       <div class="flex items-center justify-center bg-blue-100 dark:bg-blue-400/10 rounded-full w-12 h-12">
@@ -54,11 +58,13 @@
     </div>
   </div>
 
-  <!-- Offres publiées -->
-  <div class="card">
+  <!-- Offres actives (publiées) -->
+  <div class="card" *canSee="['Administrateur', 'Recruteur']">
     <div class="flex justify-between items-center">
       <div>
-        <span class="block text-muted-color font-medium mb-2">Offres publiées</span>
+        <span class="block text-muted-color font-medium mb-2">
+          {{ isRecruteur ? 'Mes Offres actives' : 'Offres publiées' }}
+        </span>
         <div class="text-surface-900 dark:text-surface-0 font-medium text-2xl">{{ offresPubliees }}</div>
       </div>
       <div class="flex items-center justify-center bg-green-100 dark:bg-green-400/10 rounded-full w-12 h-12">
@@ -68,10 +74,12 @@
   </div>
 
   <!-- Offres en attente -->
-  <div class="card">
+  <div class="card" *canSee="['Administrateur', 'Recruteur']">
     <div class="flex justify-between items-center">
       <div>
-        <span class="block text-muted-color font-medium mb-2">Offres en attente</span>
+        <span class="block text-muted-color font-medium mb-2">
+          {{ isRecruteur ? 'Mes Offres en attente' : 'Offres en attente' }}
+        </span>
         <div class="text-surface-900 dark:text-surface-0 font-medium text-2xl">{{ offresEnAttente }}</div>
       </div>
       <div class="flex items-center justify-center bg-amber-100 dark:bg-amber-400/10 rounded-full w-12 h-12">
@@ -81,10 +89,12 @@
   </div>
 
   <!-- Brouillons -->
-  <div class="card">
+  <div class="card" *canSee="['Administrateur', 'Recruteur']">
     <div class="flex justify-between items-center">
       <div>
-        <span class="block text-muted-color font-medium mb-2">Brouillons</span>
+        <span class="block text-muted-color font-medium mb-2">
+          {{ isRecruteur ? 'Mes Brouillons' : 'Brouillons' }}
+        </span>
         <div class="text-surface-900 dark:text-surface-0 font-medium text-2xl">{{ offresBrouillon }}</div>
       </div>
       <div class="flex items-center justify-center bg-slate-100 dark:bg-slate-400/10 rounded-full w-12 h-12">
@@ -93,11 +103,26 @@
     </div>
   </div>
 
-  <!-- Candidatures -->
-  <div class="card">
+  <!-- Publicités (Recruteur uniquement) -->
+  <div class="card" *canSee="['Recruteur']">
     <div class="flex justify-between items-center">
       <div>
-        <span class="block text-muted-color font-medium mb-2">Candidatures</span>
+        <span class="block text-muted-color font-medium mb-2">Mes Publicités</span>
+        <div class="text-surface-900 dark:text-surface-0 font-medium text-2xl">{{ totalPublicites }}</div>
+      </div>
+      <div class="flex items-center justify-center bg-orange-100 dark:bg-orange-400/10 rounded-full w-12 h-12">
+        <i class="pi pi-megaphone text-orange-500 !text-xl"></i>
+      </div>
+    </div>
+  </div>
+
+  <!-- Candidatures -->
+  <div class="card" *canSee="['Administrateur', 'Recruteur', 'Candidat']">
+    <div class="flex justify-between items-center">
+      <div>
+        <span class="block text-muted-color font-medium mb-2">
+          {{ isRecruteur ? 'Candidatures reçues' : isCandidatUser ? 'Mes Candidatures' : 'Candidatures' }}
+        </span>
         <div class="text-surface-900 dark:text-surface-0 font-medium text-2xl">{{ totalCandidatures }}</div>
       </div>
       <div class="flex items-center justify-center bg-fuchsia-100 dark:bg-fuchsia-400/10 rounded-full w-12 h-12">
@@ -109,34 +134,60 @@
 
 <!-- Graphiques -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  <!-- Répartition des offres -->
   <div class="card">
-    <div class="font-semibold text-xl mb-4">Répartition des offres</div>
+    <div class="font-semibold text-xl mb-4">
+      {{ isRecruteur ? 'Répartition de mes offres' : 'Répartition des offres' }}
+    </div>
     <p-chart type="doughnut" [data]="offersChartData" [options]="chartOptions" class="h-80"></p-chart>
   </div>
 
+  <!-- Statut des candidatures -->
   <div class="card">
-    <div class="font-semibold text-xl mb-4">Statut des candidatures</div>
+    <div class="font-semibold text-xl mb-4">
+      {{ isRecruteur ? 'Statut des candidatures reçues' : 'Statut des candidatures' }}
+    </div>
     <p-chart type="doughnut" [data]="candidaturesChartData" [options]="chartOptions" class="h-80"></p-chart>
   </div>
 
   <!-- Offres récentes -->
-  <div class="card col-span-2">
-    <div class="font-semibold text-xl mb-4">Offres récentes</div>
+  <div class="card col-span-1 lg:col-span-2">
+    <div class="font-semibold text-xl mb-4">
+      {{ isRecruteur ? 'Mes offres récentes' : 'Offres récentes' }}
+    </div>
     <p-table [value]="recentOffres" [paginator]="true" [rows]="5" responsiveLayout="scroll">
       <ng-template pTemplate="header">
         <tr>
           <th>Titre</th>
-          <th>Entreprise</th>
+          <th *ngIf="!isRecruteur">Entreprise</th>
           <th>Statut</th>
           <th>Publiée le</th>
+          <th *ngIf="isRecruteur">Candidatures</th>
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-o>
         <tr>
           <td>{{ o.titre }}</td>
-          <td>{{ o.entreprise }}</td>
-          <td>{{ o.statut }}</td>
-          <td>{{ o.date_publication | date:'shortDate' }}</td>
+          <td *ngIf="!isRecruteur">{{ o.entreprise }}</td>
+          <td>
+            <span [class]="getStatutClass(o.statut)">
+              {{ o.statut }}
+            </span>
+          </td>
+          <td>{{ o.date_publication | date:'dd/MM/yyyy' }}</td>
+          <td *ngIf="isRecruteur">
+            <span class="font-semibold text-blue-600">{{ o.candidatures_count || 0 }}</span>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td [attr.colspan]="isRecruteur ? 4 : 4" class="text-center py-4">
+            <div class="flex flex-col items-center gap-2 text-gray-500">
+              <i class="pi pi-inbox text-3xl"></i>
+              <p>Aucune offre pour le moment</p>
+            </div>
+          </td>
         </tr>
       </ng-template>
     </p-table>

@@ -30,7 +30,7 @@ export class OffreService {
 getMesOffres(): Observable<Offre[]> {
   return this.http
     .get<{ success: boolean; data: any }>(`${this.api}/mes-offres`, { headers: { Accept: 'application/json' } })
-    .pipe(map(r => r?.data?.data ?? []));
+    .pipe(map(r => r?.data?? []));
 }
 
 

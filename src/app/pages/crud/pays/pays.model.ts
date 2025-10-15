@@ -1,8 +1,8 @@
 export interface Pays {
   id?: number;
   nom: string;
-  code: string;           // ← unique, pas code_iso
+  code: string;           
   indicatif_tel?: string;
-  flagImage?: string;     // URL complète renvoyée par l’API
+  flagImage?: string;     
   isActive?: boolean;
 }

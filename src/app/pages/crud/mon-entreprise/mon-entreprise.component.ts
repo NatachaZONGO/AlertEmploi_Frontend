@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subject } from 'rxjs';
+import { Subject, forkJoin } from 'rxjs';
 import { takeUntil, finalize } from 'rxjs/operators';
 
 // PrimeNG
@@ -20,8 +20,12 @@ import { AvatarModule } from 'primeng/avatar';
 import { ChipModule } from 'primeng/chip';
 
 import { MonEntrepriseService } from './mon-entreprise.service';
+import { EntrepriseService } from '../entreprise/entreprise.service';
 import { Entreprise } from '../entreprise/entreprise.model';
+import { Pays } from '../pays/pays.model';  
 import { imageUrl } from '../../../Share/const';
+import { PaysDropdownComponent } from '../../../Share/pays-utils/pays-dropdown.component';
+import { PaysUtilsService } from '../../../Share/pays-utils/pays-utils.service';
 
 interface StatCard {
   title: string;
@@ -49,7 +53,8 @@ interface StatCard {
     SkeletonModule,
     TooltipModule,
     AvatarModule,
-    ChipModule
+    ChipModule,
+    PaysDropdownComponent
   ],
   templateUrl: './mon-entreprise.component.html',
   styleUrls: ['./mon-entreprise.component.css'],
@@ -69,37 +74,35 @@ export class MonEntrepriseComponent implements OnInit, OnDestroy {
   // Statistiques
   stats: StatCard[] = [];
 
+  // Liste des pays
+  paysList: Pays[] = []; 
+
   // Options pour les dropdowns
   secteursActivite = [
-    'Technologie',
-    'Finance',
-    'Santé',
-    'Éducation',
-    'Commerce',
-    'Industrie',
-    'Services',
-    'Agriculture',
-    'Transport',
-    'Immobilier',
-    'Autre'
+    'Primaire', 
+    'Secondaire', 
+    'Tertiaire', 
+    'Quaternaire'
   ];
 
   taillesEntreprise = [
     { label: '1-10 employés', value: '1-10' },
     { label: '11-50 employés', value: '11-50' },
     { label: '51-200 employés', value: '51-200' },
+    { label: '201-500 employés', value: '51-200' },
     { label: '201-500 employés', value: '201-500' },
     { label: '500+ employés', value: '500+' }
   ];
 
   constructor(
     private monEntrepriseService: MonEntrepriseService,
+    private entrepriseService: EntrepriseService,
+    public paysUtils: PaysUtilsService, 
     private messageService: MessageService
   ) {}
 
   ngOnInit(): void {
-    this.loadEntreprise();
-    this.loadStatistiques();
+    this.loadInitialData();
   }
 
   ngOnDestroy(): void {
@@ -107,68 +110,65 @@ export class MonEntrepriseComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  loadEntreprise(): void {
+  loadInitialData(): void {
     this.loading = true;
-    this.monEntrepriseService.getMonEntreprise()
-      .pipe(
-        takeUntil(this.destroy$),
-        finalize(() => this.loading = false)
-      )
-      .subscribe({
-        next: (data) => {
-          this.entreprise = data;
-          console.log('✅ Entreprise chargée:', data);
-        },
-        error: (err) => {
-          console.error('❌ Erreur chargement entreprise:', err);
-          this.showError('Impossible de charger les informations de l\'entreprise');
-        }
-      });
-  }
-
-  loadStatistiques(): void {
-    this.monEntrepriseService.getStatistiques()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (data) => {
-          this.stats = [
-            {
-              title: 'Offres d\'emploi',
-              value: data.total_offres || 0,
-              icon: 'pi pi-briefcase',
-              color: '#3b82f6',
-              bgColor: '#eff6ff',
-              route: '/gestion/offres'
-            },
-            {
-              title: 'Offres actives',
-              value: data.offres_actives || 0,
-              icon: 'pi pi-check-circle',
-              color: '#10b981',
-              bgColor: '#ecfdf5'
-            },
-            {
-              title: 'Publicités',
-              value: data.total_publicites || 0,
-              icon: 'pi pi-megaphone',
-              color: '#f59e0b',
-              bgColor: '#fffbeb',
-              route: '/gestion/publicites'
-            },
-            {
-              title: 'Candidatures',
-              value: data.candidatures_recues || 0,
-              icon: 'pi pi-users',
-              color: '#8b5cf6',
-              bgColor: '#f5f3ff'
-            }
-          ];
-          console.log('✅ Statistiques chargées:', data);
-        },
-        error: (err) => {
-          console.error('❌ Erreur chargement stats:', err);
-        }
-      });
+    
+    forkJoin({
+      entreprise: this.monEntrepriseService.getMonEntreprise(),
+      stats: this.monEntrepriseService.getStatistiques(),
+      pays: this.entrepriseService.getPays()
+    })
+    .pipe(
+      takeUntil(this.destroy$),
+      finalize(() => this.loading = false)
+    )
+    .subscribe({
+      next: ({ entreprise, stats, pays }) => {
+        this.entreprise = entreprise;
+        console.log('✅ Entreprise chargée:', entreprise);
+        
+        this.stats = [
+          {
+            title: 'Offres d\'emploi',
+            value: stats.total_offres || 0,
+            icon: 'pi pi-briefcase',
+            color: '#3b82f6',
+            bgColor: '#eff6ff',
+            route: '/gestion/offres'
+          },
+          {
+            title: 'Offres actives',
+            value: stats.offres_actives || 0,
+            icon: 'pi pi-check-circle',
+            color: '#10b981',
+            bgColor: '#ecfdf5'
+          },
+          {
+            title: 'Publicités',
+            value: stats.total_publicites || 0,
+            icon: 'pi pi-megaphone',
+            color: '#f59e0b',
+            bgColor: '#fffbeb',
+            route: '/gestion/publicites'
+          },
+          {
+            title: 'Candidatures',
+            value: stats.candidatures_recues || 0,
+            icon: 'pi pi-users',
+            color: '#8b5cf6',
+            bgColor: '#f5f3ff'
+          }
+        ];
+        console.log('✅ Statistiques chargées:', stats);
+        
+        this.paysList = pays;
+        console.log('✅ Pays chargés:', pays.length, 'pays');
+      },
+      error: (err) => {
+        console.error('❌ Erreur chargement données:', err);
+        this.showError('Impossible de charger les données');
+      }
+    });
   }
 
   openEditDialog(): void {
@@ -209,17 +209,21 @@ export class MonEntrepriseComponent implements OnInit, OnDestroy {
       });
   }
 
+  // ✅ AJOUTÉ : Callback optionnel pour le changement de pays
+  onPaysChange(paysId: number | null): void {
+    console.log('Pays sélectionné:', paysId);
+    // Tu peux ajouter de la logique ici si nécessaire
+  }
+
   onLogoSelected(event: Event): void {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
 
-    // Vérifier le type de fichier
     if (!file.type.startsWith('image/')) {
       this.showWarn('Veuillez sélectionner une image');
       return;
     }
 
-    // Vérifier la taille (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
       this.showWarn('L\'image ne doit pas dépasser 2 MB');
       return;
@@ -234,7 +238,7 @@ export class MonEntrepriseComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (res) => {
           this.showSuccess('Logo mis à jour avec succès');
-          this.loadEntreprise(); // Recharger pour avoir le nouveau logo
+          this.loadInitialData();
         },
         error: (err) => {
           console.error('❌ Erreur upload logo:', err);
@@ -245,31 +249,25 @@ export class MonEntrepriseComponent implements OnInit, OnDestroy {
 
   getLogoUrl(): string {
     if (this.entreprise?.logo) {
-      // Si c'est une URL complète
       if (this.entreprise.logo.startsWith('http')) {
         return this.entreprise.logo;
       }
-      // Si c'est un chemin storage Laravel
       if (this.entreprise.logo.startsWith('logos/')) {
         return imageUrl + this.entreprise.logo;
       }
-      // Si c'est déjà un chemin /storage/
       if (this.entreprise.logo.startsWith('/storage/')) {
         return 'http://127.0.0.1:8000' + this.entreprise.logo;
       }
-      // Sinon, ajouter imageUrl
       return imageUrl + this.entreprise.logo;
     }
     return 'assets/default-company.png';
   }
 
-  // Gestion de l'erreur d'image avec typage correct
   onImageError(event: Event): void {
     const imgElement = event.target as HTMLImageElement;
     imgElement.src = 'assets/default-company.png';
   }
 
-  // Messages
   private showSuccess(detail: string): void {
     this.messageService.add({ 
       severity: 'success', 

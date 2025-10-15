@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { catchError, map, Observable, of, throwError } from 'rxjs';
+import { catchError, map, Observable, of, tap, throwError } from 'rxjs';
 import { Candidature } from './candidature.model';
 import { BackendURL } from '../../../Share/const';
 import { AuthService } from '../../auth/auth.service';
@@ -9,13 +9,18 @@ import { AuthService } from '../../auth/auth.service';
 export class CandidatureService {
   private readonly baseUrl = `${BackendURL}candidatures`;
 
-  constructor(private http: HttpClient, private authService: AuthService) {}
+  constructor(
+    private http: HttpClient, 
+    private authService: AuthService
+  ) {}
 
   // ================== UTILS ==================
 
-  /** Récupère le token depuis AuthService ou localStorage */
+  /**
+   * Récupère le token d'authentification
+   */
   private getToken(): string | null {
-    const svc: any = this.authService as any;
+    const svc: any = this.authService;
     return (
       (typeof svc.getToken === 'function' ? svc.getToken() : undefined) ??
       svc.accessToken ??
@@ -25,118 +30,257 @@ export class CandidatureService {
     );
   }
 
-  /** Construit les headers avec Authorization */
+  /**
+   * Construit les headers avec Authorization
+   */
   private getAuthHeaders(): HttpHeaders {
     const token = this.getToken();
-    const headers: any = { Accept: 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const headers: any = { 
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
     return new HttpHeaders(headers);
   }
 
-  // ================== LECTURE ==================
+  // ================== LECTURE PAR RÔLE ==================
 
-  /** Liste (option: filtre offre_id côté backend si tu veux). */
-  getAll(params?: { offre_id?: number | string }): Observable<Candidature[]> {
-    let p = new HttpParams();
-    if (params?.offre_id != null) p = p.set('offre_id', String(params.offre_id));
-    const headers = this.getAuthHeaders(); // <-- important
-    return this.http.get<any>(this.baseUrl, { params: p, headers }).pipe(
-      map(r => r?.data ?? r ?? []),
-      catchError(() => of([]))
-    );
+  /**
+   * Récupère les candidatures selon le rôle de l'utilisateur
+   * - Admin : Toutes les candidatures
+   * - Candidat : Ses propres candidatures
+   * - Recruteur : Candidatures reçues sur ses offres
+   */
+  getCandidaturesByRole(): Observable<any[]> {
+    const userRole = this.authService.getCurrentUserRole()?.toLowerCase();
+    console.log('🔍 Récupération candidatures pour rôle:', userRole);
+
+    // Administrateur
+    if (userRole === 'administrateur' || userRole === 'admin') {
+      console.log('📋 Mode Admin');
+      return this.getAllCandidatures();
+    }
+
+    // Candidat
+    if (userRole === 'candidat') {
+      console.log('👤 Mode Candidat');
+      return this.getMesCandidatures();
+    }
+
+    // Recruteur
+    if (userRole === 'recruteur') {
+      console.log('💼 Mode Recruteur');
+      return this.getCandidaturesRecues();
+    }
+
+    // Rôle non reconnu
+    console.warn('⚠️ Rôle non reconnu:', userRole);
+    return of([]);
   }
 
   /**
-   * Candidatures du candidat connecté (token obligatoire)
-   * → Le backend récupère le candidat via le token Sanctum
+   * Récupère toutes les candidatures (Admin uniquement)
    */
-  getMine(): Observable<any[]> {
+  getAllCandidatures(): Observable<any[]> {
     const headers = this.getAuthHeaders();
-
-    if (!headers.get('Authorization')) {
-      return throwError(() => ({
-        status: 401,
-        message: 'Utilisateur non authentifié (token manquant)'
-      }));
-    }
-
-    return this.http.get<any>(`${this.baseUrl}/mes-candidatures`, { headers }).pipe(
-      map(r => r?.data ?? r ?? []),
-      catchError(e => {
-        console.error('Erreur getMine:', e);
-        return throwError(() => ({
-          status: e.status || 500,
-          message: e.error?.message || 'Erreur lors du chargement des candidatures'
-        }));
+    console.log('📡 Appel getAllCandidatures()');
+    
+    return this.http.get(`${this.baseUrl}`, { headers }).pipe(
+      map((response: any) => {
+        console.log('📦 Réponse Admin:', response);
+        const data = response?.data ?? response ?? [];
+        return Array.isArray(data) ? data : [];
+      }),
+      catchError(error => {
+        console.error('❌ Erreur Admin:', error);
+        return of([]);
       })
     );
   }
 
-  /** Par offre */
- getByOffre(offreId: number): Observable<Candidature[]> {
-    const headers = this.getAuthHeaders(); // <-- important
-    return this.http.get<any>(`${BackendURL}candidatures?offre_id=${offreId}`, { headers }).pipe(
+  /**
+   * Récupère les candidatures du candidat connecté
+   */
+  getMesCandidatures(): Observable<any[]> {
+    const headers = this.getAuthHeaders();
+    console.log('📡 Appel getMesCandidatures()');
+
+    if (!headers.get('Authorization')) {
+      console.error('❌ Token manquant');
+      return of([]);
+    }
+    
+    return this.http.get(`${this.baseUrl}/mes-candidatures`, { headers }).pipe(
+      map((response: any) => {
+        console.log('📦 Réponse Candidat:', response);
+        const data = response?.data ?? response ?? [];
+        return Array.isArray(data) ? data : [];
+      }),
+      catchError(error => {
+        console.error('❌ Erreur Candidat:', error);
+        return of([]);
+      })
+    );
+  }
+
+  /**
+   * Alias pour compatibilité (utilise getMesCandidatures)
+   */
+  getMine(): Observable<any[]> {
+    return this.getMesCandidatures();
+  }
+
+  /**
+   * Récupère les candidatures reçues pour le recruteur
+   */
+  getCandidaturesRecues(): Observable<any[]> {
+    const headers = this.getAuthHeaders();
+    console.log('📡 Appel getCandidaturesRecues()');
+    
+    return this.http.get(`${this.baseUrl}/recues`, { headers }).pipe(
+      map((response: any) => {
+        console.log('📦 Réponse Recruteur:', response);
+        const data = response?.data ?? response ?? [];
+        return Array.isArray(data) ? data : [];
+      }),
+      catchError(error => {
+        console.error('❌ Erreur Recruteur:', error);
+        return of([]);
+      })
+    );
+  }
+
+  // ================== AUTRES LECTURES ==================
+
+  /**
+   * Liste avec filtres optionnels
+   */
+  getAll(params?: { offre_id?: number | string }): Observable<Candidature[]> {
+    let httpParams = new HttpParams();
+    if (params?.offre_id != null) {
+      httpParams = httpParams.set('offre_id', String(params.offre_id));
+    }
+    const headers = this.getAuthHeaders();
+    
+    return this.http.get<any>(this.baseUrl, { params: httpParams, headers }).pipe(
       map(response => response?.data ?? response ?? []),
       catchError(() => of([]))
     );
   }
 
-  /** Détail */
+  /**
+   * Candidatures par offre
+   */
+  getByOffre(offreId: number): Observable<Candidature[]> {
+    const headers = this.getAuthHeaders();
+    return this.http.get<any>(`${this.baseUrl}?offre_id=${offreId}`, { headers }).pipe(
+      map(response => response?.data ?? response ?? []),
+      catchError(() => of([]))
+    );
+  }
+
+  /**
+   * Détail d'une candidature
+   */
   getOne(id: number): Observable<Candidature> {
     const headers = this.getAuthHeaders();
     return this.http.get<Candidature>(`${this.baseUrl}/${id}`, { headers });
   }
 
-  /** Offres light pour dropdown */
+  /**
+   * Liste des offres pour dropdown
+   */
   getOffresLight(): Observable<{ id: number; titre: string }[]> {
     return this.http.get<any>(`${BackendURL}offres`).pipe(
       map(response => {
         let offres: any[] = [];
-        if (Array.isArray(response)) offres = response;
-        else if (response?.data?.data) offres = response.data.data;
-        else if (response?.data) offres = response.data;
-        return (offres || []).map((o: any) => ({ id: o.id, titre: o.titre }));
+        if (Array.isArray(response)) {
+          offres = response;
+        } else if (response?.data?.data) {
+          offres = response.data.data;
+        } else if (response?.data) {
+          offres = response.data;
+        }
+        return (offres || []).map((o: any) => ({ 
+          id: o.id, 
+          titre: o.titre 
+        }));
       }),
       catchError(() => of([]))
     );
   }
 
-  // ================== CRÉATION / MÀJ ==================
+  // ================== CRÉATION / MODIFICATION ==================
 
-  /** Création (candidat connecté) */
-  create(fd: FormData): Observable<Candidature> {
-    const headers = this.getAuthHeaders();
-    return this.http.post<any>(this.baseUrl, fd, { headers }).pipe(
-      map(resp => resp?.data ?? resp),
-      catchError(e => throwError(() => e))
+  /**
+   * Créer une candidature (candidat connecté)
+   */
+  create(formData: FormData): Observable<Candidature> {
+    const headers = new HttpHeaders({
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${this.getToken()}`
+    });
+    
+    return this.http.post<any>(this.baseUrl, formData, { headers }).pipe(
+      map(response => response?.data ?? response),
+      catchError(error => throwError(() => error))
     );
   }
 
-  /** Création invité (sans compte) */
-  createGuest(fd: FormData): Observable<Candidature> {
-    const headers = new HttpHeaders({ Accept: 'application/json' });
-    return this.http.post<any>(`${this.baseUrl}/guest`, fd, { headers }).pipe(
-      map(resp => resp?.data ?? resp),
-      catchError(e => throwError(() => e))
+  /**
+   * Créer une candidature invité (sans compte)
+   */
+  createGuest(formData: FormData): Observable<Candidature> {
+    const headers = new HttpHeaders({ 
+      'Accept': 'application/json' 
+    });
+    
+    return this.http.post<any>(`${this.baseUrl}/guest`, formData, { headers }).pipe(
+      map(response => response?.data ?? response),
+      catchError(error => throwError(() => error))
     );
   }
 
-  /** Màj statut */
-  updateStatut(id: number, statut: string, motif?: string): Observable<any> {
+  /**
+   * Mettre à jour le statut d'une candidature
+   */
+  updateStatut(candidatureId: number, statut: string, motif?: string): Observable<any> {
     const headers = this.getAuthHeaders();
+    console.log(`🔄 Mise à jour statut candidature ${candidatureId} vers ${statut}`);
+    
     const body: { statut: string; motif_refus?: string } = { statut };
-    if (motif) body.motif_refus = motif;
-    return this.http.put(`${this.baseUrl}/${id}/statut`, body, { headers });
+    if (motif) {
+      body.motif_refus = motif;
+    }
+    
+    return this.http.put(
+      `${this.baseUrl}/${candidatureId}/statut`, 
+      body, 
+      { headers }
+    ).pipe(
+      tap(() => console.log('✅ Statut mis à jour')),
+      catchError(error => {
+        console.error('❌ Erreur updateStatut:', error);
+        return throwError(() => error);
+      })
+    );
   }
 
-  /** Suppression */
+  /**
+   * Supprimer une candidature
+   */
   delete(id: number): Observable<any> {
     const headers = this.getAuthHeaders();
     return this.http.delete(`${this.baseUrl}/${id}`, { headers });
   }
 
-  // ================== SUIVI ==================
+  // ================== SUIVI CANDIDATURE ==================
 
+  /**
+   * Rechercher une candidature par code de suivi
+   */
   findByCode(code: string): Observable<any> {
     return this.http.get<any>(`${this.baseUrl}/suivi/${code}`).pipe(
       map((response: any) => {
@@ -161,18 +305,34 @@ export class CandidatureService {
         throw new Error('Format de réponse invalide');
       }),
       catchError((error) => throwError(() => ({
-        message: error.error?.message || 'Erreur lors de la recherche de candidature',
+        message: error.error?.message || 'Erreur lors de la recherche',
         status: error.status
       })))
     );
   }
 
+  /**
+   * Renvoyer l'email de confirmation
+   */
   resendEmail(codesuivi: string): Observable<any> {
-    const headers = new HttpHeaders({ 'Content-Type': 'application/json', Accept: 'application/json' });
-    return this.http.post<any>(`${this.baseUrl}/renvoyer-email`, { code_suivi: codesuivi }, { headers }).pipe(
-      map((resp) => {
-        if (resp?.success) return { success: true, message: resp.message || 'Email envoyé avec succès' };
-        throw new Error(resp?.message || 'Erreur lors de l’envoi de l’email');
+    const headers = new HttpHeaders({ 
+      'Content-Type': 'application/json', 
+      'Accept': 'application/json' 
+    });
+    
+    return this.http.post<any>(
+      `${this.baseUrl}/renvoyer-email`, 
+      { code_suivi: codesuivi }, 
+      { headers }
+    ).pipe(
+      map((response) => {
+        if (response?.success) {
+          return { 
+            success: true, 
+            message: response.message || 'Email envoyé avec succès' 
+          };
+        }
+        throw new Error(response?.message || 'Erreur lors de l\'envoi');
       }),
       catchError((error) => throwError(() => ({
         message: error.error?.message || 'Impossible d\'envoyer l\'email',
@@ -181,30 +341,33 @@ export class CandidatureService {
     );
   }
 
+  // ================== TÉLÉCHARGEMENTS ==================
+
+  /**
+   * Télécharger le CV
+   */
   downloadCVById(candidatureId: number): Observable<Blob> {
-    const headers = this.getAuthHeaders();
-    return this.http.get(`${this.baseUrl}/${candidatureId}/download/cv`, { headers, responseType: 'blob' });
+    const headers = new HttpHeaders({
+      'Authorization': `Bearer ${this.getToken()}`
+    });
+    
+    return this.http.get(
+      `${this.baseUrl}/${candidatureId}/download/cv`, 
+      { headers, responseType: 'blob' }
+    );
   }
 
+  /**
+   * Télécharger la lettre de motivation
+   */
   downloadLMById(candidatureId: number): Observable<Blob> {
-    const headers = this.getAuthHeaders();
-    return this.http.get(`${this.baseUrl}/${candidatureId}/download/lm`, { headers, responseType: 'blob' });
-  }
-
-  /** Selon le rôle connecté */
-  getCandidaturesByRole(): Observable<any> {
-    const headers = this.getAuthHeaders();
-
-    if ((this.authService as any)?.hasRole?.('Administrateur') || (this.authService as any)?.hasRole?.('admin')) {
-      return this.http.get(`${this.baseUrl}`, { headers }).pipe(map((r: any) => r?.data ?? r ?? []));
-    }
-    if ((this.authService as any)?.hasRole?.('Candidat') || (this.authService as any)?.hasRole?.('candidat')) {
-      return this.getMine();
-    }
-    if ((this.authService as any)?.hasRole?.('Recruteur') || (this.authService as any)?.hasRole?.('recruteur')) {
-      return this.http.get(`${this.baseUrl}/recues`, { headers }).pipe(map((r: any) => r?.data ?? r ?? []));
-    }
-
-    return of({ success: false, data: [], message: 'Accès non autorisé' });
+    const headers = new HttpHeaders({
+      'Authorization': `Bearer ${this.getToken()}`
+    });
+    
+    return this.http.get(
+      `${this.baseUrl}/${candidatureId}/download/lm`, 
+      { headers, responseType: 'blob' }
+    );
   }
 }

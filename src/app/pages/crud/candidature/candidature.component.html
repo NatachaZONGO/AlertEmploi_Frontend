@@ -101,7 +101,7 @@
           </p-button>
 
           <!-- Supprimer -->
-          <p-button *canSee="['Administrateur']"
+          <p-button *canSee="['Candidat']"
             icon="pi pi-trash"
             [rounded]="true"
             [outlined]="true"
@@ -352,7 +352,7 @@
   <ng-template pTemplate="footer">
     <div class="flex flex-col sm:flex-row justify-between gap-3">
       <!-- Actions de validation -->
-      <div class="flex gap-2" *canSee="['Administrateur','Recruteur']">
+      <div class="flex gap-2" *canSee="['Recruteur']">
         <button *ngIf="current?.statut === 'en_attente'"
                 pButton
                 label="Accepter"

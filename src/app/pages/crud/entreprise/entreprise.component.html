@@ -427,18 +427,12 @@
             <label for="pays" class="field-label">
               Pays
             </label>
-            <p-dropdown
-              id="pays"
+            <app-pays-dropdown
+              [paysList]="listePays"
               [(ngModel)]="entreprise.pays_id"
-              [options]="pays"
-              optionLabel="label"
-              optionValue="value"
-              placeholder="Choisir un pays"
-              [filter]="true"
-              filterBy="label"
-              [showClear]="true"
-              styleClass="w-full">
-            </p-dropdown>
+              name="pays_id"
+              placeholder="Choisir un pays">
+            </app-pays-dropdown>
           </div>
         </div>
       </div>

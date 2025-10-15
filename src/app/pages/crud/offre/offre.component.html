@@ -77,7 +77,7 @@
       <th pSortableColumn="titre" style="min-width: 200px">
         Titre <p-sortIcon field="titre"></p-sortIcon>
       </th>
-      <th pSortableColumn="entreprise.nom_entreprise" style="min-width: 180px">
+      <th pSortableColumn="entreprise.nom_entreprise" style="min-width: 180px" *canSee="['Administrateur']">
         Entreprise <p-sortIcon field="entreprise.nom_entreprise"></p-sortIcon>
       </th>
       <th pSortableColumn="categorie.nom" style="min-width: 150px">
@@ -134,7 +134,7 @@
         </div>
       </td>
 
-      <td style="min-width: 180px">
+      <td style="min-width: 180px" *canSee="['Administrateur']">
         <div class="flex flex-col">
           <span class="font-medium">{{ offre.entreprise?.nom_entreprise || '-' }}</span>
           <small class="text-gray-500">{{ offre.entreprise?.secteur_activite || '' }}</small>

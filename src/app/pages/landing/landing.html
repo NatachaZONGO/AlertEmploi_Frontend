@@ -174,29 +174,73 @@
   [dismissableMask]="true"
   [style]="{ width: '900px', maxWidth: '95vw' }"
   [breakpoints]="{ '960px': '95vw', '640px': '100vw' }"
+  styleClass="modern-dialog"
   [header]="selectedOffre?.titre || 'Détail de l\'offre'">
 
   <ng-container *ngIf="selectedOffre as d">
-    <div class="space-y-3">
-      <div class="text-gray-600 text-sm">
-        {{ d.entreprise?.nom_entreprise || 'Entreprise' }} • {{ d.localisation || '—' }}
+    <div class="offer-details-container">
+      <!-- En-tête avec infos principales -->
+      <div class="offer-header-section">
+        <div class="offer-company-info">
+          <i class="pi pi-building text-2xl text-blue-600"></i>
+          <div class="ml-3">
+            <div class="text-lg font-semibold text-gray-800">
+              {{ d.entreprise?.nom_entreprise || 'Entreprise' }}
+            </div>
+            <div class="text-sm text-gray-500 flex items-center gap-2">
+              <i class="pi pi-map-marker"></i>
+              {{ d.localisation || '—' }}
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="flex flex-wrap gap-2">
-        <p-tag *ngIf="d.type_contrat" [value]="d.type_contrat"></p-tag>
-        <p-tag *ngIf="$any(d.categorie)?.nom || d.categorie" [value]="$any(d.categorie)?.nom ?? (typeof d.categorie === 'string' ? d.categorie : '')"></p-tag>
-        <p-tag *ngIf="d.experience" [value]="d.experience"></p-tag>
-        <p-tag *ngIf="d.salaire" [value]="d.salaire + ' CFA'"></p-tag>
+      <!-- Tags et badges -->
+      <div class="offer-tags-section">
+        <p-tag *ngIf="d.type_contrat" [value]="d.type_contrat" severity="info" styleClass="tag-modern"></p-tag>
+        <p-tag *ngIf="$any(d.categorie)?.nom || d.categorie" 
+               [value]="$any(d.categorie)?.nom ?? (typeof d.categorie === 'string' ? d.categorie : '')" 
+               severity="success" 
+               styleClass="tag-modern"></p-tag>
+        <p-tag *ngIf="d.experience" [value]="'Expérience: ' + d.experience" severity="warning" styleClass="tag-modern"></p-tag>
+        <p-tag *ngIf="d.salaire" [value]="d.salaire + ' CFA'" severity="danger" styleClass="tag-modern"></p-tag>
       </div>
 
-      <div class="offer-html" [innerHTML]="d.description || ''"></div>
+      <!-- Divider -->
+      <div class="dialog-divider"></div>
 
-      <div class="details-footer">
-        <button pButton pRipple label="Postuler" icon="pi pi-send" (click)="postuler(d)"></button>
+      <!-- Description de l'offre -->
+      <div class="offer-description-section">
+        <h3 class="section-subtitle-dialog">
+          <i class="pi pi-info-circle"></i>
+          Description du poste
+        </h3>
+        <div class="offer-html-content" [innerHTML]="d.description || ''"></div>
+      </div>
+
+      <!-- Footer avec action -->
+      <div class="offer-footer-section">
+        <button 
+          pButton 
+          pRipple 
+          label="Postuler maintenant" 
+          icon="pi pi-send" 
+          class="apply-button-modern"
+          (click)="postuler(d)">
+        </button>
+        <button 
+          pButton 
+          pRipple 
+          label="Fermer" 
+          icon="pi pi-times" 
+          class="p-button-text p-button-secondary"
+          (click)="detailsVisible=false">
+        </button>
       </div>
     </div>
   </ng-container>
 </p-dialog>
+
 
 <!-- ======== POSTULER (invité + connecté) ======== -->
 <p-dialog
@@ -205,317 +249,253 @@
   [draggable]="false"
   [resizable]="false"
   [dismissableMask]="true"
-  [style]="{ width: '760px', maxWidth: '95vw' }"
+  [style]="{ width: '800px', maxWidth: '95vw' }"
   [breakpoints]="{ '960px': '95vw', '640px': '100vw' }"
+  styleClass="modern-dialog apply-dialog"
   [header]="'Postuler — ' + (selectedOffre?.titre || '')">
 
-  <form #applyForm="ngForm" class="apply-form" (ngSubmit)="submitApplication(applyForm)" novalidate>
-    <!-- Nom / Prénom -->
-    <div class="row two">
-      <div class="field">
-        <label>Nom *</label>
-        <input pInputText name="nom" [(ngModel)]="apply.nom" required [readonly]="isAuth" />
-      </div>
-      <div class="field">
-        <label>Prénom *</label>
-        <input pInputText name="prenom" [(ngModel)]="apply.prenom" required [readonly]="isAuth" />
-      </div>
+  <form #applyForm="ngForm" class="apply-form-modern" (ngSubmit)="submitApplication(applyForm)" novalidate>
+    
+    <!-- Badge d'information si connecté -->
+    <div *ngIf="isAuth && candidatProfile" class="auth-info-banner">
+      <i class="pi pi-check-circle"></i>
+      <span>Vos informations ont été pré-remplies automatiquement</span>
     </div>
 
-    <!-- Email -->
-    <div class="row">
-      <div class="field">
-        <label>Email *</label>
-        <input pInputText type="email" name="email" [(ngModel)]="apply.email" required email [readonly]="isAuth" />
-        <small class="muted" *ngIf="!isAuth">
-          Vous avez déjà un compte ? <a (click)="goLogin()" style="cursor:pointer;">Se connecter</a>
-        </small>
-      </div>
-    </div>
+    <!-- Section : Informations personnelles -->
+    <div class="form-section">
+      <h3 class="form-section-title">
+        <i class="pi pi-user"></i>
+        Informations personnelles
+      </h3>
 
-    <!-- Ville + Date de naissance (requis pour invités) -->
-    <div class="row two">
-      <div class="field">
-        <label>Ville *</label>
-        <input
-          pInputText
-          name="ville"
-          [(ngModel)]="apply.ville"
-          [required]="!isAuth"
-          autocomplete="address-level2"
-          placeholder="Ex: Ouagadougou"
-          [readonly]="isAuth"
-          #villeModel="ngModel"
-        />
-        <small class="text-red-500" *ngIf="!isAuth && villeModel.invalid && (villeModel.dirty || applyForm.submitted)">
-          La ville est obligatoire.
-        </small>
-      </div>
-
-      <div class="field" *ngIf="!isAuth">
-        <label>Date de naissance *</label>
-        <input
-          pInputText
-          type="date"
-          name="date_naissance"
-          [(ngModel)]="apply.date_naissance"
-          [required]="!isAuth"
-          [attr.max]="today"
-          #dobModel="ngModel"
-        />
-        <small class="text-red-500" *ngIf="dobModel.invalid && (dobModel.dirty || applyForm.submitted)">
-          La date de naissance est obligatoire.
-        </small>
-      </div>
-    </div>
-
-    <!-- Sexe (invité) -->
-    <div class="row" *ngIf="!isAuth">
-      <div class="field">
-        <label>Sexe</label>
-        <div class="flex items-center gap-3 flex-wrap">
-          <p-radioButton name="sexe" inputId="sxM" value="M" [(ngModel)]="apply.sexe"></p-radioButton>
-          <label for="sxM">Homme</label>
-
-          <p-radioButton name="sexe" inputId="sxF" value="F" [(ngModel)]="apply.sexe"></p-radioButton>
-          <label for="sxF">Femme</label>
-
-          <p-radioButton name="sexe" inputId="sxX" value="X" [(ngModel)]="apply.sexe"></p-radioButton>
-          <label for="sxX">Autre / Préfère ne pas dire</label>
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-label">Nom *</label>
+          <input pInputText name="nom" [(ngModel)]="apply.nom" required [readonly]="isAuth" 
+                 class="modern-input" [class.readonly-input]="isAuth" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Prénom *</label>
+          <input pInputText name="prenom" [(ngModel)]="apply.prenom" required [readonly]="isAuth" 
+                 class="modern-input" [class.readonly-input]="isAuth" />
         </div>
       </div>
-    </div>
 
-    <!-- Niveau d'étude (invité) -->
-    <div class="row" *ngIf="!isAuth">
-      <div class="field">
-        <label>Niveau d'étude</label>
-        <p-select
-          name="niveau_etude"
-          [(ngModel)]="apply.niveau_etude"
-          [options]="niveauEtudeOptions"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="Sélectionner"
-          [style]="{ width: '100%' }"
-        ></p-select>
-      </div>
-    </div>
-
-    <!-- Disponibilité (invité) -->
-    <div class="row" *ngIf="!isAuth">
-      <div class="field">
-        <label>Disponibilité</label>
-        <div class="flex items-center gap-3 flex-wrap">
-          <p-radioButton
-            name="disponibilite"
-            inputId="dispNow"
-            value="immediate"
-            [(ngModel)]="apply.disponibilite"
-          ></p-radioButton>
-          <label for="dispNow">Immédiate</label>
-
-          <p-radioButton
-            name="disponibilite"
-            inputId="disp1w"
-            value="sous_1_semaine"
-            [(ngModel)]="apply.disponibilite"
-          ></p-radioButton>
-          <label for="disp1w">Sous 1 semaine</label>
-
-          <p-radioButton
-            name="disponibilite"
-            inputId="disp2w"
-            value="sous_2_semaines"
-            [(ngModel)]="apply.disponibilite"
-          ></p-radioButton>
-          <label for="disp2w">Sous 2 semaines</label>
-
-          <p-radioButton
-            name="disponibilite"
-            inputId="disp1m"
-            value="sous_1_mois"
-            [(ngModel)]="apply.disponibilite"
-          ></p-radioButton>
-          <label for="disp1m">Sous 1 mois</label>
-
-          <p-radioButton
-            name="disponibilite"
-            inputId="dispOther"
-            value="autre"
-            [(ngModel)]="apply.disponibilite"
-          ></p-radioButton>
-          <label for="dispOther">Autre</label>
-
-          <input
-            *ngIf="apply.disponibilite === 'autre'"
-            pInputText
-            name="disponibilite_autre"
-            [(ngModel)]="apply.disponibilite_autre"
-            placeholder="Ex: début octobre"
-            style="min-width: 220px;"
-          />
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-label">Email *</label>
+          <input pInputText type="email" name="email" [(ngModel)]="apply.email" required email [readonly]="isAuth" 
+                 class="modern-input" [class.readonly-input]="isAuth" />
+          <small class="form-hint" *ngIf="!isAuth">
+            Vous avez déjà un compte ? <a (click)="goLogin()" class="link-primary">Se connecter</a>
+          </small>
         </div>
-        <small class="muted">Choisissez une option. Si "Autre", précisez un court texte.</small>
       </div>
-    </div>
 
-    <!-- Téléphone -->
-    <div class="row">
-      <div class="field">
-        <label>Numéro de téléphone</label>
-        <input pInputText name="phone" [(ngModel)]="apply.phone" placeholder="+226 70 00 00 00" [readonly]="isAuth" />
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-label">Ville *</label>
+          <input pInputText name="ville" [(ngModel)]="apply.ville" [required]="!isAuth" 
+                 autocomplete="address-level2" placeholder="Ex: Ouagadougou" [readonly]="isAuth"
+                 class="modern-input" [class.readonly-input]="isAuth" #villeModel="ngModel" />
+          <small class="form-error" *ngIf="!isAuth && villeModel.invalid && (villeModel.dirty || applyForm.submitted)">
+            La ville est obligatoire.
+          </small>
+        </div>
+
+        <div class="form-field" *ngIf="!isAuth">
+          <label class="form-label">Date de naissance *</label>
+          <input pInputText type="date" name="date_naissance" [(ngModel)]="apply.date_naissance" 
+                 [required]="!isAuth" [attr.max]="today" class="modern-input" #dobModel="ngModel" />
+          <small class="form-error" *ngIf="dobModel.invalid && (dobModel.dirty || applyForm.submitted)">
+            La date de naissance est obligatoire.
+          </small>
+        </div>
       </div>
-    </div>
 
-    <!-- Pays + Expérience -->
-    <div class="row two">
-      <div class="field">
-        <label>Pays</label>
-        <p-select
-          name="pays"
-          [(ngModel)]="apply.pays"
-          [options]="paysOptions"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="Sélectionner"
-          [filter]="true"
-          [virtualScroll]="true"
-          [virtualScrollItemSize]="38"
-          [style]="{ width: '100%' }"
-        >
-          <!-- Valeur sélectionnée -->
-          <ng-template pTemplate="selectedItem" let-opt>
-            <div class="flex items-center gap-2" *ngIf="opt">
-              <img
-                *ngIf="opt.flag"
-                [src]="opt.flag"
-                alt=""
-                width="20"
-                height="14"
-                style="border-radius: 2px; border: 1px solid #e5e7eb"
-              />
-              <span>{{ opt.label }}</span>
-              <small class="text-gray-500 ml-1">{{ opt.code }}</small>
+      <!-- Sexe (invité uniquement) -->
+      <div class="form-row" *ngIf="!isAuth">
+        <div class="form-field full-width">
+          <label class="form-label">Sexe</label>
+          <div class="radio-group">
+            <div class="radio-item">
+              <p-radioButton name="sexe" inputId="sxM" value="M" [(ngModel)]="apply.sexe"></p-radioButton>
+              <label for="sxM">Homme</label>
             </div>
-            <span *ngIf="!opt" class="text-gray-400">Sélectionner</span>
-          </ng-template>
-
-          <!-- Items de la liste -->
-          <ng-template pTemplate="item" let-opt>
-            <div class="flex items-center gap-2">
-              <img
-                *ngIf="opt.flag"
-                [src]="opt.flag"
-                alt=""
-                width="20"
-                height="14"
-                style="border-radius: 2px; border: 1px solid #e5e7eb"
-              />
-              <span>{{ opt.label }}</span>
-              <small class="text-gray-500 ml-2">{{ opt.code }}</small>
+            <div class="radio-item">
+              <p-radioButton name="sexe" inputId="sxF" value="F" [(ngModel)]="apply.sexe"></p-radioButton>
+              <label for="sxF">Femme</label>
             </div>
-          </ng-template>
-        </p-select>
-      </div>
-
-      <div class="field">
-        <label>Années d'expérience</label>
-        <p-inputNumber
-          name="experience"
-          [(ngModel)]="apply.experience"
-          [min]="0"
-          [max]="60"
-          [useGrouping]="false"
-          [style]="{ width: '100%' }"
-        ></p-inputNumber>
-      </div>
-    </div>
-
-    <!-- CV -->
-    <div class="row">
-      <label class="block font-medium mb-1">CV</label>
-      <div class="flex items-center gap-3 flex-wrap">
-        <p-radioButton name="cvChoice" inputId="cvExisting" value="existing" [(ngModel)]="apply.cvChoice" [disabled]="!isAuth"></p-radioButton>
-        <label for="cvExisting">Utiliser mon CV existant</label>
-
-        <p-radioButton name="cvChoice" inputId="cvUpload" value="upload" [(ngModel)]="apply.cvChoice"></p-radioButton>
-        <label for="cvUpload">Téléverser un CV</label>
-
-        <input *ngIf="apply.cvChoice === 'upload'" type="file" accept=".pdf,.doc,.docx" (change)="onApplyFile($event)" />
-      </div>
-      <small class="muted">PDF ou DOC, 5 Mo max.</small>
-    </div>
-
-    <!-- Lettre de motivation (texte OU fichier) -->
-    <div class="row">
-      <div class="field">
-        <label>Lettre de motivation</label>
-
-        <div class="flex items-center gap-3 flex-wrap mb-2">
-          <p-radioButton
-            name="lmChoice"
-            inputId="lmText"
-            value="text"
-            [(ngModel)]="apply.lmChoice"
-          ></p-radioButton>
-          <label for="lmText">Saisir du texte</label>
-
-          <p-radioButton
-            name="lmChoice"
-            inputId="lmUpload"
-            value="upload"
-            [(ngModel)]="apply.lmChoice"
-          ></p-radioButton>
-          <label for="lmUpload">Téléverser un fichier</label>
-        </div>
-
-        <!-- Zone de texte si 'text' -->
-        <textarea
-          *ngIf="apply.lmChoice === 'text'"
-          pTextarea
-          name="motivation"
-          [(ngModel)]="apply.motivation"
-          rows="5"
-          autoResize="true"
-          placeholder="Expliquez brièvement pourquoi vous êtes un bon candidat"
-        ></textarea>
-
-        <!-- Fichier si 'upload' -->
-        <div *ngIf="apply.lmChoice === 'upload'">
-          <input
-            type="file"
-            accept=".pdf,.doc,.docx,.txt,.odt"
-            (change)="onApplyLmFile($event)"
-          />
-          <small class="muted block mt-1">PDF, DOC, DOCX, TXT ou ODT — 5 Mo max.</small>
+            <div class="radio-item">
+              <p-radioButton name="sexe" inputId="sxX" value="X" [(ngModel)]="apply.sexe"></p-radioButton>
+              <label for="sxX">Autre</label>
+            </div>
+          </div>
         </div>
       </div>
+
+      <div class="form-row" *ngIf="!isAuth">
+        <div class="form-field">
+          <label class="form-label">Niveau d'étude</label>
+          <p-select name="niveau_etude" [(ngModel)]="apply.niveau_etude" [options]="niveauEtudeOptions" 
+                    optionLabel="label" optionValue="value" placeholder="Sélectionner" 
+                    [style]="{ width: '100%' }" styleClass="modern-select"></p-select>
+        </div>
+      </div>
+
+      <!-- Disponibilité (invité uniquement) -->
+      <div class="form-row" *ngIf="!isAuth">
+        <div class="form-field full-width">
+          <label class="form-label">Disponibilité</label>
+          <div class="radio-group">
+            <div class="radio-item">
+              <p-radioButton name="disponibilite" inputId="dispNow" value="immediate" [(ngModel)]="apply.disponibilite"></p-radioButton>
+              <label for="dispNow">Immédiate</label>
+            </div>
+            <div class="radio-item">
+              <p-radioButton name="disponibilite" inputId="disp1w" value="sous_1_semaine" [(ngModel)]="apply.disponibilite"></p-radioButton>
+              <label for="disp1w">Sous 1 semaine</label>
+            </div>
+            <div class="radio-item">
+              <p-radioButton name="disponibilite" inputId="disp2w" value="sous_2_semaines" [(ngModel)]="apply.disponibilite"></p-radioButton>
+              <label for="disp2w">Sous 2 semaines</label>
+            </div>
+            <div class="radio-item">
+              <p-radioButton name="disponibilite" inputId="disp1m" value="sous_1_mois" [(ngModel)]="apply.disponibilite"></p-radioButton>
+              <label for="disp1m">Sous 1 mois</label>
+            </div>
+            <div class="radio-item">
+              <p-radioButton name="disponibilite" inputId="dispOther" value="autre" [(ngModel)]="apply.disponibilite"></p-radioButton>
+              <label for="dispOther">Autre</label>
+            </div>
+          </div>
+          <input *ngIf="apply.disponibilite === 'autre'" pInputText name="disponibilite_autre" 
+                 [(ngModel)]="apply.disponibilite_autre" placeholder="Ex: début octobre" 
+                 class="modern-input mt-2" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-label">Téléphone</label>
+          <input pInputText name="phone" [(ngModel)]="apply.phone" placeholder="+226 70 00 00 00" 
+                 [readonly]="isAuth" class="modern-input" [class.readonly-input]="isAuth" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-label">Pays</label>
+          <p-select name="pays" [(ngModel)]="apply.pays" [options]="paysOptions" optionLabel="label" 
+                    optionValue="value" placeholder="Sélectionner" [filter]="true" [virtualScroll]="true" 
+                    [virtualScrollItemSize]="38" [style]="{ width: '100%' }" styleClass="modern-select">
+            <ng-template pTemplate="selectedItem" let-opt>
+              <div class="flex items-center gap-2" *ngIf="opt">
+                <img *ngIf="opt.flag" [src]="opt.flag" alt="" width="20" height="14" 
+                     style="border-radius: 2px; border: 1px solid #e5e7eb" />
+                <span>{{ opt.label }}</span>
+              </div>
+              <span *ngIf="!opt" class="text-gray-400">Sélectionner</span>
+            </ng-template>
+            <ng-template pTemplate="item" let-opt>
+              <div class="flex items-center gap-2">
+                <img *ngIf="opt.flag" [src]="opt.flag" alt="" width="20" height="14" 
+                     style="border-radius: 2px; border: 1px solid #e5e7eb" />
+                <span>{{ opt.label }}</span>
+              </div>
+            </ng-template>
+          </p-select>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Années d'expérience</label>
+          <p-inputNumber name="experience" [(ngModel)]="apply.experience" [min]="0" [max]="60" 
+                         [useGrouping]="false" [style]="{ width: '100%' }" styleClass="modern-input"></p-inputNumber>
+        </div>
+      </div>
     </div>
 
-    <!-- Revue -->
-    <div class="row">
-      <p-checkbox inputId="reviewNow" name="reviewNow" binary="true" [(ngModel)]="apply.reviewNow"></p-checkbox>
-      <label for="reviewNow" class="ml-2">Vérifier ma candidature maintenant</label>
+    <!-- Section : Documents -->
+    <div class="form-section">
+      <h3 class="form-section-title">
+        <i class="pi pi-file"></i>
+        Documents
+      </h3>
+
+      <div class="form-row">
+        <div class="form-field full-width">
+          <label class="form-label">CV *</label>
+          <div class="radio-group mb-2">
+            <div class="radio-item">
+              <p-radioButton name="cvChoice" inputId="cvExisting" value="existing" 
+                            [(ngModel)]="apply.cvChoice" [disabled]="!isAuth"></p-radioButton>
+              <label for="cvExisting">Utiliser mon CV existant</label>
+            </div>
+            <div class="radio-item">
+              <p-radioButton name="cvChoice" inputId="cvUpload" value="upload" 
+                            [(ngModel)]="apply.cvChoice"></p-radioButton>
+              <label for="cvUpload">Téléverser un nouveau CV</label>
+            </div>
+          </div>
+          <input *ngIf="apply.cvChoice === 'upload'" type="file" accept=".pdf,.doc,.docx" 
+                 (change)="onApplyFile($event)" class="file-input-modern" />
+          <small class="form-hint">PDF ou DOC, 5 Mo max.</small>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-field full-width">
+          <label class="form-label">Lettre de motivation</label>
+          <div class="radio-group mb-2">
+            <div class="radio-item">
+              <p-radioButton name="lmChoice" inputId="lmText" value="text" 
+                            [(ngModel)]="apply.lmChoice"></p-radioButton>
+              <label for="lmText">Saisir du texte</label>
+            </div>
+            <div class="radio-item">
+              <p-radioButton name="lmChoice" inputId="lmUpload" value="upload" 
+                            [(ngModel)]="apply.lmChoice"></p-radioButton>
+              <label for="lmUpload">Téléverser un fichier</label>
+            </div>
+          </div>
+
+          <textarea *ngIf="apply.lmChoice === 'text'" pTextarea name="motivation" 
+                    [(ngModel)]="apply.motivation" rows="5" autoResize="true" 
+                    placeholder="Expliquez brièvement pourquoi vous êtes le candidat idéal..." 
+                    class="modern-textarea"></textarea>
+
+          <div *ngIf="apply.lmChoice === 'upload'">
+            <input type="file" accept=".pdf,.doc,.docx,.txt,.odt" (change)="onApplyLmFile($event)" 
+                   class="file-input-modern" />
+            <small class="form-hint">PDF, DOC, DOCX, TXT ou ODT — 5 Mo max.</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-field full-width checkbox-field">
+          <p-checkbox inputId="reviewNow" name="reviewNow" binary="true" 
+                     [(ngModel)]="apply.reviewNow"></p-checkbox>
+          <label for="reviewNow" class="checkbox-label">
+            Vérifier ma candidature avant envoi
+          </label>
+        </div>
+      </div>
     </div>
 
-    <div class="footer">
-      <button pButton type="button" class="p-button-text" label="Annuler" (click)="applyVisible=false"></button>
-      <button
-        pButton
-        type="submit"
-        icon="pi pi-send"
-        label="Envoyer ma candidature"
-        [disabled]="
-          applyForm.invalid ||
-          (!isAuth && !apply.ville.trim()) ||
-          (apply.cvChoice==='upload' && !cvFile)
-        "
-      >
+    <!-- Footer actions -->
+    <div class="form-footer">
+      <button pButton type="button" label="Annuler" icon="pi pi-times" 
+              class="p-button-text p-button-secondary" (click)="applyVisible=false"></button>
+      <button pButton type="submit" label="Envoyer ma candidature" icon="pi pi-send" 
+              class="submit-button-modern"
+              [disabled]="applyForm.invalid || (!isAuth && !apply.ville.trim()) || (apply.cvChoice==='upload' && !cvFile)">
       </button>
     </div>
   </form>
 </p-dialog>
+
 
 <!-- ======== DÉTAIL CONSEIL ======== -->
 <p-dialog
@@ -526,52 +506,55 @@
   [dismissableMask]="true"
   [style]="{ width: '900px', maxWidth: '95vw' }"
   [breakpoints]="{ '960px': '95vw', '640px': '100vw' }"
-  [header]="currentConseil?.titre || 'Conseil'"
->
+  styleClass="modern-dialog conseil-dialog"
+  [header]="currentConseil?.titre || 'Conseil'">
+
   <ng-template pTemplate="content">
-    <!-- état chargement -->
-    <div *ngIf="loadingConseil" class="flex items-center gap-2">
-      <i class="pi pi-spin pi-spinner"></i>
-      <span>Chargement…</span>
+    <!-- Chargement -->
+    <div *ngIf="loadingConseil" class="loading-state">
+      <i class="pi pi-spin pi-spinner text-4xl text-blue-600"></i>
+      <span class="mt-3 text-gray-600">Chargement du conseil...</span>
     </div>
 
-    <!-- contenu -->
-    <div *ngIf="!loadingConseil && currentConseil">
-      <div class="text-sm text-gray-600 mb-3 flex items-center gap-2 flex-wrap">
-        <p-tag *ngIf="currentConseil.categorie" [value]="currentConseil.categorie" severity="success"></p-tag>
-        <p-tag *ngIf="currentConseil.niveau" [value]="currentConseil.niveau" severity="secondary"></p-tag>
-        <span *ngIf="currentConseil.publie_le">{{ currentConseil.publie_le | date:'mediumDate' }}</span>
+    <!-- Contenu -->
+    <div *ngIf="!loadingConseil && currentConseil" class="conseil-content">
+      <!-- Meta informations -->
+      <div class="conseil-meta">
+        <p-tag *ngIf="currentConseil.categorie" [value]="currentConseil.categorie" 
+               severity="success" styleClass="tag-modern"></p-tag>
+        <p-tag *ngIf="currentConseil.niveau" [value]="currentConseil.niveau" 
+               severity="secondary" styleClass="tag-modern"></p-tag>
+        <span *ngIf="currentConseil.publie_le" class="conseil-date">
+          <i class="pi pi-calendar"></i>
+          {{ currentConseil.publie_le | date:'mediumDate' }}
+        </span>
       </div>
 
-      <!-- Rendu HTML nettoyé / sécurisé -->
-      <div class="conseil-body prose-base" [innerHTML]="conseilSafeHtml"></div>
+      <!-- Divider -->
+      <div class="dialog-divider"></div>
+
+      <!-- Corps du conseil -->
+      <div class="conseil-body-modern" [innerHTML]="conseilSafeHtml"></div>
     </div>
 
-    <!-- vide / erreur -->
-    <div *ngIf="!loadingConseil && !currentConseil" class="text-gray-500">
-      Impossible d'afficher ce conseil pour le moment.
+    <!-- État vide -->
+    <div *ngIf="!loadingConseil && !currentConseil" class="empty-state">
+      <i class="pi pi-info-circle text-4xl text-gray-400"></i>
+      <p class="mt-3 text-gray-600">Impossible d'afficher ce conseil pour le moment.</p>
     </div>
   </ng-template>
 
   <ng-template pTemplate="footer">
-    <button pButton type="button" label="Fermer" icon="pi pi-times" (click)="conseilDialogVisible=false"></button>
-    <button
-      *ngIf="currentConseil?.id"
-      pButton
-      type="button"
-      label="Ouvrir la page"
-      icon="pi pi-external-link"
-      class="p-button-text"
-      (click)="goToConseil(currentConseil.id)"
-    ></button>
+    <button pButton type="button" label="Fermer" icon="pi pi-times" 
+            class="p-button-text p-button-secondary" (click)="conseilDialogVisible=false"></button>
+    <button *ngIf="currentConseil?.id" pButton type="button" label="Ouvrir la page complète" 
+            icon="pi pi-external-link" class="p-button-text p-button-primary" 
+            (click)="goToConseil(currentConseil.id)"></button>
   </ng-template>
 </p-dialog>
 
 <!-- Dialog réutilisable "Créer une offre" -->
-<app-offre-create-dialog
-  #createDialog
-  (created)="onOfferCreated($event)">
-</app-offre-create-dialog>
+<app-offre-create-dialog #createDialog (created)="onOfferCreated($event)"></app-offre-create-dialog>
 
 <!-- Styles améliorés -->
 <style>
@@ -583,15 +566,11 @@
   }
 
   @media (min-width: 768px) {
-    .section-container {
-      padding: 4rem 2rem;
-    }
+    .section-container { padding: 4rem 2rem; }
   }
 
   @media (min-width: 1024px) {
-    .section-container {
-      padding: 5rem 3rem;
-    }
+    .section-container { padding: 5rem 3rem; }
   }
 
   /* ===== EN-TÊTES DE SECTIONS ===== */
@@ -612,9 +591,7 @@
   }
 
   @media (min-width: 768px) {
-    .section-title {
-      font-size: 3rem;
-    }
+    .section-title { font-size: 3rem; }
   }
 
   .section-subtitle {
@@ -649,6 +626,12 @@
     margin-right: auto;
   }
 
+  .dialog-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, #e2e8f0 50%, transparent 100%);
+    margin: 1.5rem 0;
+  }
+
   /* ===== GRILLES DE CARTES ===== */
   .cards-grid {
     display: grid;
@@ -657,27 +640,19 @@
   }
 
   @media (min-width: 640px) {
-    .cards-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
+    .cards-grid { grid-template-columns: repeat(2, 1fr); }
   }
 
   .featured-grid {
-    @media (min-width: 1024px) {
-      grid-template-columns: repeat(3, 1fr);
-    }
+    @media (min-width: 1024px) { grid-template-columns: repeat(3, 1fr); }
   }
 
   .recent-grid {
-    @media (min-width: 1024px) {
-      grid-template-columns: repeat(4, 1fr);
-    }
+    @media (min-width: 1024px) { grid-template-columns: repeat(4, 1fr); }
   }
 
   .tips-grid {
-    @media (min-width: 1024px) {
-      grid-template-columns: repeat(3, 1fr);
-    }
+    @media (min-width: 1024px) { grid-template-columns: repeat(3, 1fr); }
   }
 
   /* ===== CARTES OFFRES VEDETTES ===== */
@@ -698,7 +673,6 @@
     border-color: #111d9d;
   }
 
-  /* Ruban diagonal vedette */
   .card-ribbon {
     position: absolute;
     top: 1rem;
@@ -732,7 +706,6 @@
     border-color: #0a6c34;
   }
 
-  /* ===== EN-TÊTES DE CARTES ===== */
   .card-header {
     display: flex;
     justify-content: space-between;
@@ -741,10 +714,7 @@
     margin-bottom: 1rem;
   }
 
-  .job-info {
-    flex: 1;
-    min-width: 0;
-  }
+  .job-info { flex: 1; min-width: 0; }
 
   .job-title {
     font-size: 1.1rem;
@@ -765,15 +735,6 @@
     white-space: nowrap;
   }
 
-  /* ===== BADGES ET PUCES ===== */
-  .badges-container {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    align-items: flex-end;
-  }
-
-  /* Badges pour les cartes vedettes - positionnés plus bas pour éviter le ruban */
   .badges-container-vedette {
     display: flex;
     flex-direction: column;
@@ -793,30 +754,17 @@
     white-space: nowrap;
   }
 
-  .featured-badge {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.75rem;
-    border-radius: 1rem;
-    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-    color: #92400e;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-
-  /* ===== DESCRIPTIONS ===== */
   .job-description {
-    font-size: 0.875rem;
-    color: #4b5563;
-    line-height: 1.5;
-    margin: 1rem 0;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
-    overflow: hidden;
-  }
+  font-size: 0.875rem;
+  color: #4b5563;
+  line-height: 1.5;
+  margin: 1rem 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3; /* Standard property for compatibility */
+  overflow: hidden;
+}
 
-  /* ===== PIEDS DE CARTES ===== */
   .card-footer {
     display: flex;
     justify-content: space-between;
@@ -824,10 +772,7 @@
     margin-top: 1rem;
   }
 
-  .publish-date {
-    font-size: 0.75rem;
-    color: #9ca3af;
-  }
+  .publish-date { font-size: 0.75rem; color: #9ca3af; }
 
   .view-btn {
     font-size: 0.75rem !important;
@@ -844,9 +789,7 @@
   }
 
   /* ===== CARROUSEL PARTENAIRES ===== */
-  .carousel-container {
-    margin: 2rem 0;
-  }
+  .carousel-container { margin: 2rem 0; }
 
   .partner-card {
     background: white;
@@ -869,8 +812,7 @@
     background: #f8fafc;
   }
 
-  .partner-media img,
-  .partner-media video {
+  .partner-media img, .partner-media video {
     position: absolute;
     top: 0;
     left: 0;
@@ -879,9 +821,7 @@
     object-fit: cover;
   }
 
-  .partner-content {
-    padding: 1rem;
-  }
+  .partner-content { padding: 1rem; }
 
   .partner-title {
     font-size: 0.95rem;
@@ -894,16 +834,16 @@
   }
 
   .partner-description {
-    font-size: 0.8rem;
-    color: #64748b;
-    line-height: 1.4;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    overflow: hidden;
-    margin-bottom: 0.75rem;
-  }
+  font-size: 0.8rem;
+  color: #64748b;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+  line-clamp: 2; /* Standard property for compatibility */
+}
 
   .partner-link {
     color: #0a6c34 !important;
@@ -916,9 +856,7 @@
     transition: color 0.3s ease;
   }
 
-  .partner-link:hover {
-    color: #166534 !important;
-  }
+  .partner-link:hover { color: #166534 !important; }
 
   /* ===== CARTES CONSEILS ===== */
   .tip-card {
@@ -949,23 +887,22 @@
     color: #1e293b;
     line-height: 1.4;
     display: -webkit-box;
-    -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
-    line-clamp: 2;
+    line-clamp: 2; /* Standard property for compatibility */
     overflow: hidden;
-  }
+}
 
-  .tip-excerpt {
+.tip-excerpt {
     font-size: 0.875rem;
     color: #4b5563;
     line-height: 1.5;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
-    line-clamp: 3;
+    line-clamp: 3; /* Standard property for compatibility */
     overflow: hidden;
     margin-bottom: 1rem;
-  }
+}
 
   .tip-footer {
     display: flex;
@@ -979,10 +916,7 @@
     gap: 0.25rem;
   }
 
-  .tip-date {
-    font-size: 0.75rem;
-    color: #9ca3af;
-  }
+  .tip-date { font-size: 0.75rem; color: #9ca3af; }
 
   .read-btn {
     font-size: 0.75rem !important;
@@ -996,22 +930,371 @@
     transform: translateY(-2px) !important;
   }
 
-  /* ===== STYLES TAGS PRIMENG ===== */
-  .tip-level {
-    font-size: 0.65rem !important;
-    padding: 0.2rem 0.5rem !important;
+  /* ===== STYLES DIALOG MODERNISÉS ===== */
+  :host ::ng-deep .modern-dialog .p-dialog-header {
+    background: linear-gradient(135deg, #111d9d 0%, #0a6c34 100%);
+    color: white;
+    padding: 1.5rem 2rem;
+    border-bottom: none;
+    border-radius: 0.75rem 0.75rem 0 0;
   }
 
-  .tip-category {
-    font-size: 0.65rem !important;
-    padding: 0.2rem 0.5rem !important;
+  :host ::ng-deep .modern-dialog .p-dialog-header .p-dialog-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: white;
   }
 
-  /* ===== PERSONNALISATION CAROUSEL ===== */
-  :host ::ng-deep .p-carousel .p-carousel-content .p-carousel-container {
-    margin: 0 -0.75rem;
+  :host ::ng-deep .modern-dialog .p-dialog-header .p-dialog-header-icons button {
+    color: white !important;
+    width: 2.5rem;
+    height: 2.5rem;
   }
 
+  :host ::ng-deep .modern-dialog .p-dialog-header .p-dialog-header-icons button:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+  }
+
+  :host ::ng-deep .modern-dialog .p-dialog-content {
+    padding: 2rem;
+    background: #ffffff;
+  }
+
+  :host ::ng-deep .modern-dialog .p-dialog-footer {
+    padding: 1.5rem 2rem;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+  }
+
+  /* Dialog Détails Offre */
+  .offer-details-container { display: flex; flex-direction: column; gap: 1.5rem; }
+
+  .offer-header-section {
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid #bae6fd;
+  }
+
+  .offer-company-info {
+    display: flex;
+    align-items: center;
+  }
+
+  .offer-tags-section {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .tag-modern {
+    font-weight: 600 !important;
+    padding: 0.5rem 1rem !important;
+    border-radius: 1rem !important;
+    font-size: 0.875rem !important;
+  }
+
+  .section-subtitle-dialog {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 1rem;
+  }
+
+  .offer-html-content {
+    font-size: 0.95rem;
+    line-height: 1.8;
+    color: #374151;
+  }
+
+  .offer-html-content p { margin: 0.75rem 0; }
+  .offer-html-content ul, .offer-html-content ol { margin: 0.75rem 0 0.75rem 1.5rem; }
+  .offer-html-content li { margin: 0.5rem 0; }
+  .offer-html-content h1, .offer-html-content h2, .offer-html-content h3 {
+    margin: 1.5rem 0 0.75rem;
+    font-weight: 600;
+    color: #111827;
+  }
+
+  .offer-footer-section {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .apply-button-modern {
+    background: linear-gradient(135deg, #111d9d 0%, #0a6c34 100%) !important;
+    border: none !important;
+    padding: 0.75rem 2rem !important;
+    font-weight: 600 !important;
+    font-size: 1rem !important;
+    box-shadow: 0 4px 12px rgba(17, 29, 157, 0.3) !important;
+    transition: all 0.3s ease !important;
+  }
+
+  .apply-button-modern:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(17, 29, 157, 0.4) !important;
+  }
+
+  /* Dialog Postuler */
+  .apply-form-modern {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  .auth-info-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: linear-gradient(135deg, #dcfce7 0%, #d1fae5 100%);
+    color: #166534;
+    padding: 1rem 1.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid #86efac;
+    font-weight: 500;
+    font-size: 0.95rem;
+  }
+
+  .auth-info-banner i {
+    font-size: 1.25rem;
+  }
+
+  .form-section {
+    background: #f8fafc;
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+  }
+
+  .form-section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #e2e8f0;
+  }
+
+  .form-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .form-field {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .form-field.full-width {
+    flex: 1 1 100%;
+  }
+
+  .form-label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.9rem;
+  }
+
+  .modern-input, .modern-textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 0.5rem;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+  }
+
+  .modern-input:focus, .modern-textarea:focus {
+    border-color: #111d9d;
+    box-shadow: 0 0 0 3px rgba(17, 29, 157, 0.1);
+    outline: none;
+  }
+
+  .readonly-input {
+    background: #f3f4f6;
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  .form-hint {
+    color: #6b7280;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+  }
+
+  .form-error {
+    color: #dc2626;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+    font-weight: 500;
+  }
+
+  .link-primary {
+    color: #111d9d;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
+  .link-primary:hover {
+    color: #0a6c34;
+  }
+
+  .radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .radio-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .radio-item label {
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: #374151;
+  }
+
+  .checkbox-field {
+    display: flex;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .checkbox-label {
+    font-size: 0.95rem;
+    color: #374151;
+    cursor: pointer;
+  }
+
+  .file-input-modern {
+    padding: 0.5rem;
+    border: 2px dashed #e2e8f0;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .file-input-modern:hover {
+    border-color: #111d9d;
+    background: #f8fafc;
+  }
+
+  .form-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid #e2e8f0;
+  }
+
+  .submit-button-modern {
+    background: linear-gradient(135deg, #111d9d 0%, #0a6c34 100%) !important;
+    border: none !important;
+    padding: 0.75rem 2rem !important;
+    font-weight: 600 !important;
+    font-size: 1rem !important;
+    box-shadow: 0 4px 12px rgba(17, 29, 157, 0.3) !important;
+    transition: all 0.3s ease !important;
+  }
+
+  .submit-button-modern:not([disabled]):hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(17, 29, 157, 0.4) !important;
+  }
+
+  .submit-button-modern[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Dialog Conseil */
+  .loading-state, .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    text-align: center;
+  }
+
+  .conseil-content { display: flex; flex-direction: column; gap: 1.5rem; }
+
+  .conseil-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .conseil-date {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: #6b7280;
+  }
+
+  .conseil-body-modern {
+    font-size: 1rem;
+    line-height: 1.8;
+    color: #374151;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 1rem;
+  }
+
+  .conseil-body-modern::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .conseil-body-modern::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+  }
+
+  .conseil-body-modern::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
+
+  .conseil-body-modern::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  .conseil-body-modern p { margin: 1rem 0; }
+  .conseil-body-modern ul, .conseil-body-modern ol { margin: 1rem 0 1rem 1.5rem; }
+  .conseil-body-modern li { margin: 0.5rem 0; }
+  .conseil-body-modern h1, .conseil-body-modern h2, .conseil-body-modern h3 {
+    margin: 2rem 0 1rem;
+    font-weight: 600;
+    color: #111827;
+  }
+  .conseil-body-modern h1 { font-size: 1.5rem; }
+  .conseil-body-modern h2 { font-size: 1.25rem; }
+  .conseil-body-modern h3 { font-size: 1.1rem; }
+
+  /* ===== CAROUSEL CUSTOMIZATION ===== */
   :host ::ng-deep .p-carousel .p-carousel-prev,
   :host ::ng-deep .p-carousel .p-carousel-next {
     background-color: #111d9d;
@@ -1027,7 +1310,7 @@
     background-color: #0d1784;
   }
 
-  /* ===== ANIMATIONS POUR L'ENGAGEMENT ===== */
+  /* ===== ANIMATIONS ===== */
   @keyframes fadeInUp {
     from {
       opacity: 0;
@@ -1039,32 +1322,11 @@
     }
   }
 
-  .section-container {
-    animation: fadeInUp 0.6s ease-out;
+  .section-container { animation: fadeInUp 0.6s ease-out; }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 768px) {
+    .form-row { flex-direction: column; }
+    .radio-group { flex-direction: column; }
   }
-
-  /* ===== STYLES EXISTANTS POUR LES DIALOGS ===== */
-  .offer-html p { margin: .5rem 0; line-height: 1.6; }
-  .offer-html ul, .offer-html ol { margin: .5rem 1.25rem; }
-  .offer-html h1, .offer-html h2, .offer-html h3 { margin: .75rem 0 .25rem; }
-  .details-footer { position: sticky; bottom: 0; padding-top: 1rem; background: #fff; display: flex; justify-content: flex-end; }
-
-  .apply-form .row { display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap; }
-  .apply-form .row.two > .field { flex: 1 1 0; min-width: 220px; }
-  .apply-form .field { display: flex; flex-direction: column; gap: .35rem; flex: 1 1 100%; }
-  .apply-form .footer { display:flex; justify-content:flex-end; gap:.5rem; margin-top:.5rem; }
-  .muted { color:#6b7280; font-size:.85rem; }
-  .conseil-body {
-    max-height: 60vh;
-    overflow: auto;
-    line-height: 1.6;
-    word-break: break-word;
-    white-space: normal;
-  }
-
-  .prose-base h1,.prose-base h2,.prose-base h3 { margin: .6rem 0 .3rem; font-weight: 700; }
-  .prose-base p { margin: .5rem 0; }
-  .prose-base ul,.prose-base ol { margin: .5rem 1.25rem; }
-  .prose-base blockquote { margin: .6rem 0; padding-left: .8rem; border-left: 3px solid #e5e7eb; color:#374151; }
-  .prose-base code { background:#f3f4f6; padding: .1rem .3rem; border-radius: 4px; }
 </style>

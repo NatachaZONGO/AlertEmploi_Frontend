@@ -182,9 +182,9 @@ updateEntreprise(id: number, entreprise: UpdateEntrepriseRequest) {
   /**
    * Récupérer la liste des pays (pour le dropdown)
    */
-   getPays(): Observable<Array<{ id:number; nom:string }>> {
+   getPays(): Observable<Array<{ id:number; nom:string; code:string }>> {
     return this.http.get<any>(`${this.apiUrl}/pays`).pipe(
-      map(res => this.pickArray(res).map((p:any) => ({ id: p.id, nom: p.nom })))
+      map(res => this.pickArray(res).map((p:any) => ({ id: p.id, nom: p.nom, code: p.code })))
     );
   }
 
