@@ -86,27 +86,27 @@ export class AppMenu {
                     label: 'Mon Entreprise',
                     icon: 'pi pi-fw pi-building',
                     routerLink: ['/pages/mon-entreprise'],
-                    roles: ['Recruteur']  
+                    roles: ['Recruteur']  // ← Changez "canSee" en "roles"
                      
                 },
                 {
                     label: 'Offres',
                     icon: 'pi pi-fw pi-tags',
                     routerLink: ['/pages/offre'],
-                    roles: ['Administrateur', 'Recruteur']  // ← Changez "canSee" en "roles"
+                    roles: ['Administrateur', 'Recruteur', 'community_manager']  // ← Changez "canSee" en "roles"
                 },
                 {
                     label: 'Candidatures',
                     icon: 'pi pi-fw pi-file',
                     routerLink: ['/pages/candidature'],
-                    roles: ['Administrateur', 'Recruteur', 'Candidat']  // ← Ajoutez les rôles requis
+                    roles: ['Administrateur', 'Recruteur', 'Candidat', 'community_manager']  // ← Ajoutez les rôles requis
                 },
                 
                 {
                     label: 'Entreprises',
                     icon: 'pi pi-fw pi-building',
                     routerLink: ['/pages/entreprise'],
-                    roles: ['Administrateur']
+                    roles: ['Administrateur', 'community_manager']
                 },
                 {
                     label: 'Catégories',
@@ -136,7 +136,7 @@ export class AppMenu {
                     label: 'Publicités',
                     icon: 'pi pi-fw pi-book',
                     routerLink: ['/pages/publicite'],
-                    roles: ['Administrateur', 'Recruteur']
+                    roles: ['Administrateur', 'Recruteur', 'community_manager']
                 },
                 {
                     label: 'Conseils',
@@ -151,12 +151,16 @@ export class AppMenu {
                     routerLink: ['/pages/notification'],
                     
                 },
-                {
-                    label: 'Mon CV',
-                    icon: 'pi pi-fw pi-calendar',
-                    routerLink: ['/pages/cv'],
-                    roles: ['Candidat']  // ← Visible pour les candidats
-                },
+
+
+
+
+
+
+
+
+
+                
                 {
                     label: 'Landing Page',
                     icon: 'pi pi-fw pi-globe',
@@ -181,7 +185,7 @@ export class AppMenu {
                         {
                             label: 'Déconnexion',
                             icon: 'pi pi-fw pi-lock',
-                            routerLink: ['/deconnexion'],
+                            routerLink: ['/landing'],
                             command: () => this.authService.logout(),
                         },
                     ],

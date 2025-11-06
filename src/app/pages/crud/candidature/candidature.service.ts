@@ -47,83 +47,84 @@ export class CandidatureService {
 
   // ================== LECTURE PAR RÔLE ==================
 
-  /**
-   * Récupère les candidatures selon le rôle de l'utilisateur
-   * - Admin : Toutes les candidatures
-   * - Candidat : Ses propres candidatures
-   * - Recruteur : Candidatures reçues sur ses offres
-   */
+  
   getCandidaturesByRole(): Observable<any[]> {
-    const userRole = this.authService.getCurrentUserRole()?.toLowerCase();
-    console.log('🔍 Récupération candidatures pour rôle:', userRole);
+  const userRole = this.authService.getCurrentUserRole()?.toLowerCase();
+  console.log('🔍 Récupération candidatures pour rôle:', userRole);
 
-    // Administrateur
-    if (userRole === 'administrateur' || userRole === 'admin') {
-      console.log('📋 Mode Admin');
-      return this.getAllCandidatures();
-    }
-
-    // Candidat
-    if (userRole === 'candidat') {
-      console.log('👤 Mode Candidat');
-      return this.getMesCandidatures();
-    }
-
-    // Recruteur
-    if (userRole === 'recruteur') {
-      console.log('💼 Mode Recruteur');
-      return this.getCandidaturesRecues();
-    }
-
-    // Rôle non reconnu
-    console.warn('⚠️ Rôle non reconnu:', userRole);
-    return of([]);
+  // Administrateur
+  if (userRole === 'administrateur' || userRole === 'admin') {
+    console.log('📋 Mode Admin');
+    return this.getAllCandidatures();
   }
+
+  // Candidat
+  if (userRole === 'candidat') {
+    console.log('👤 Mode Candidat');
+    return this.getMesCandidatures();
+  }
+
+  // Recruteur OU Community Manager
+  if (userRole === 'recruteur' || userRole === 'community_manager') {
+    console.log('💼 Mode Recruteur/CM');
+    return this.getCandidaturesRecues();
+  }
+
+  // Rôle non reconnu
+  console.warn('⚠️ Rôle non reconnu:', userRole);
+  return of([]);
+}
 
   /**
    * Récupère toutes les candidatures (Admin uniquement)
    */
   getAllCandidatures(): Observable<any[]> {
-    const headers = this.getAuthHeaders();
-    console.log('📡 Appel getAllCandidatures()');
-    
-    return this.http.get(`${this.baseUrl}`, { headers }).pipe(
-      map((response: any) => {
-        console.log('📦 Réponse Admin:', response);
-        const data = response?.data ?? response ?? [];
-        return Array.isArray(data) ? data : [];
-      }),
-      catchError(error => {
-        console.error('❌ Erreur Admin:', error);
-        return of([]);
-      })
-    );
-  }
+  const headers = this.getAuthHeaders();
+  console.log('📡 Appel getAllCandidatures()');
+  console.log('📍 URL:', this.baseUrl);
+  
+  // ✅ baseUrl = BackendURL + "candidatures"
+  // URL finale : http://api.com/candidatures
+  return this.http.get(this.baseUrl, { headers }).pipe(
+    map((response: any) => {
+      console.log('📦 Réponse Admin:', response);
+      const data = response?.data ?? response ?? [];
+      return Array.isArray(data) ? data : [];
+    }),
+    catchError(error => {
+      console.error('❌ Erreur Admin:', error);
+      return of([]);
+    })
+  );
+}
 
   /**
    * Récupère les candidatures du candidat connecté
    */
   getMesCandidatures(): Observable<any[]> {
-    const headers = this.getAuthHeaders();
-    console.log('📡 Appel getMesCandidatures()');
+  const headers = this.getAuthHeaders();
+  const url = `${BackendURL}candidatures/mes-candidatures`; 
+  
+  console.log('📡 Appel getMesCandidatures()');
+  console.log('📍 URL:', url);
 
-    if (!headers.get('Authorization')) {
-      console.error('❌ Token manquant');
-      return of([]);
-    }
-    
-    return this.http.get(`${this.baseUrl}/mes-candidatures`, { headers }).pipe(
-      map((response: any) => {
-        console.log('📦 Réponse Candidat:', response);
-        const data = response?.data ?? response ?? [];
-        return Array.isArray(data) ? data : [];
-      }),
-      catchError(error => {
-        console.error('❌ Erreur Candidat:', error);
-        return of([]);
-      })
-    );
+  if (!headers.get('Authorization')) {    console.error('❌ Token manquant');
+    return of([]);
   }
+  
+  // ✅ URL finale : http://api.com/mes-candidatures
+  return this.http.get(url, { headers }).pipe(
+    map((response: any) => {
+      console.log('📦 Réponse Candidat:', response);
+      const data = response?.data ?? response ?? [];
+      return Array.isArray(data) ? data : [];
+    }),
+    catchError(error => {
+      console.error('❌ Erreur Candidat:', error);
+      return of([]);
+    })
+  );
+}
 
   /**
    * Alias pour compatibilité (utilise getMesCandidatures)
@@ -133,24 +134,42 @@ export class CandidatureService {
   }
 
   /**
-   * Récupère les candidatures reçues pour le recruteur
+   * ✅ Récupère les candidatures reçues pour le recruteur ET community manager
+   * Le backend filtre automatiquement selon les entreprises gérables
    */
   getCandidaturesRecues(): Observable<any[]> {
-    const headers = this.getAuthHeaders();
-    console.log('📡 Appel getCandidaturesRecues()');
-    
-    return this.http.get(`${this.baseUrl}/recues`, { headers }).pipe(
-      map((response: any) => {
-        console.log('📦 Réponse Recruteur:', response);
-        const data = response?.data ?? response ?? [];
-        return Array.isArray(data) ? data : [];
-      }),
-      catchError(error => {
-        console.error('❌ Erreur Recruteur:', error);
-        return of([]);
-      })
-    );
-  }
+  const headers = this.getAuthHeaders();
+  const userRole = this.authService.getCurrentUserRole()?.toLowerCase();
+  const url = `${BackendURL}candidatures/recues`; // ✅ AVEC "candidatures"
+  
+  console.log('📡 Appel getCandidaturesRecues() pour rôle:', userRole);
+  console.log('📍 URL:', url);
+  
+  // ✅ URL finale : http://api.com/candidatures/recues
+  return this.http.get(url, { headers }).pipe(
+    map((response: any) => {
+      console.log('📦 Réponse Recruteur/CM:', response);
+      
+      // Gérer la pagination
+      if (response?.data?.data) {
+        return response.data.data;
+      } else if (response?.data) {
+        return Array.isArray(response.data) ? response.data : [];
+      } else if (Array.isArray(response)) {
+        return response;
+      }
+      
+      return [];
+    }),
+    tap(data => {
+      console.log(`✅ ${data.length} candidatures chargées pour ${userRole}`);
+    }),
+    catchError(error => {
+      console.error('❌ Erreur Recruteur/CM:', error);
+      return of([]);
+    })
+  );
+}
 
   // ================== AUTRES LECTURES ==================
 
@@ -178,6 +197,25 @@ export class CandidatureService {
     return this.http.get<any>(`${this.baseUrl}?offre_id=${offreId}`, { headers }).pipe(
       map(response => response?.data ?? response ?? []),
       catchError(() => of([]))
+    );
+  }
+
+  /**
+   * ✅ NOUVEAU : Récupérer les candidatures d'une offre spécifique (avec vérification des droits backend)
+   */
+  getCandidaturesByOffre(offreId: number): Observable<Candidature[]> {
+    const headers = this.getAuthHeaders();
+    console.log(`📡 Récupération candidatures pour offre ${offreId}`);
+    
+    return this.http.get<any>(`${this.baseUrl}/offre/${offreId}`, { headers }).pipe(
+      map(response => {
+        console.log('📦 Réponse:', response);
+        return response?.data ?? response ?? [];
+      }),
+      catchError(error => {
+        console.error('❌ Erreur:', error);
+        return of([]);
+      })
     );
   }
 
@@ -244,29 +282,29 @@ export class CandidatureService {
   }
 
   /**
-   * Mettre à jour le statut d'une candidature
+   * ✅ Mettre à jour le statut d'une candidature (Recruteur ET CM)
    */
-  updateStatut(candidatureId: number, statut: string, motif?: string): Observable<any> {
-    const headers = this.getAuthHeaders();
-    console.log(`🔄 Mise à jour statut candidature ${candidatureId} vers ${statut}`);
-    
-    const body: { statut: string; motif_refus?: string } = { statut };
-    if (motif) {
-      body.motif_refus = motif;
-    }
-    
-    return this.http.put(
-      `${this.baseUrl}/${candidatureId}/statut`, 
-      body, 
-      { headers }
-    ).pipe(
-      tap(() => console.log('✅ Statut mis à jour')),
-      catchError(error => {
-        console.error('❌ Erreur updateStatut:', error);
-        return throwError(() => error);
-      })
-    );
+  updateStatut(candidatureId: number, statut: string, messageStatut?: string): Observable<any> {
+  const headers = this.getAuthHeaders();
+  const url = `${this.baseUrl}/${candidatureId}/statut`;
+  
+  console.log(`🔄 Mise à jour statut candidature ${candidatureId} vers ${statut}`);
+  console.log('📍 URL:', url);
+  
+  const body: { statut: string; message_statut?: string } = { statut };
+  if (messageStatut) {
+    body.message_statut = messageStatut;
   }
+  
+  // ✅ Utiliser PATCH (pas PUT)
+  return this.http.patch(url, body, { headers }).pipe(
+    tap(() => console.log('✅ Statut mis à jour')),
+    catchError(error => {
+      console.error('❌ Erreur updateStatut:', error);
+      return throwError(() => error);
+    })
+  );
+}
 
   /**
    * Supprimer une candidature
@@ -274,6 +312,36 @@ export class CandidatureService {
   delete(id: number): Observable<any> {
     const headers = this.getAuthHeaders();
     return this.http.delete(`${this.baseUrl}/${id}`, { headers });
+  }
+
+  // ================== STATISTIQUES ==================
+
+  /**
+   * ✅ NOUVEAU : Récupérer les statistiques des candidatures
+   * - Admin : Globales
+   * - Recruteur/CM : Personnelles (filtrées par entreprises)
+   */
+  getStatistiques(): Observable<any> {
+    const headers = this.getAuthHeaders();
+    console.log('📊 Récupération statistiques candidatures');
+    
+    return this.http.get<any>(`${this.baseUrl}/statistiques`, { headers }).pipe(
+      map(response => {
+        console.log('📦 Stats reçues:', response);
+        return response?.data ?? response ?? {};
+      }),
+      catchError(error => {
+        console.error('❌ Erreur stats:', error);
+        return of({
+          total: 0,
+          en_attente: 0,
+          acceptees: 0,
+          refusees: 0,
+          nouvelles_7j: 0,
+          nouvelles_30j: 0
+        });
+      })
+    );
   }
 
   // ================== SUIVI CANDIDATURE ==================
@@ -369,5 +437,15 @@ export class CandidatureService {
       `${this.baseUrl}/${candidatureId}/download/lm`, 
       { headers, responseType: 'blob' }
     );
+  }
+
+  getCommunityManagerCandidatures(entrepriseId?: number): Observable<any> {
+    let params = new HttpParams();
+    
+    if (entrepriseId) {
+      params = params.set('entreprise_id', entrepriseId.toString());
+    }
+    
+    return this.http.get<any>(`${this.baseUrl}/community/candidatures`, { params });
   }
 }

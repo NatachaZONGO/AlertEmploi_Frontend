@@ -10,6 +10,8 @@ import { OffresListComponent } from './app/pages/landing/components/offres_list/
 import { SuiviCandidatureComponent } from './app/pages/crud/candidature/suivre_candidature';
 import { PublishOffreComponent } from './app/pages/landing/components/publish-offre';
 import { authGuard } from './app/pages/auth/auth.guard';
+import { ForgotPasswordComponent } from './app/pages/auth/forgot-password/forgot-password.component';
+import { ResetPasswordComponent } from './app/pages/auth/reset-password/reset-password.component';
 
 export const appRoutes: Routes = [
   { path: '', component: Landing },
@@ -26,7 +28,16 @@ export const appRoutes: Routes = [
   { path: 'connexion', component: ConnexionComponent },
   { path: 'register', component: RegisterComponent },
   { path: 'landing', component: Landing },
-  
+  { 
+    path: 'forgot-password', 
+    component: ForgotPasswordComponent,
+    title: 'Mot de passe oublié'
+  },
+  { 
+    path: 'reset-password', 
+    component: ResetPasswordComponent,
+    title: 'Réinitialiser le mot de passe'
+  },
   // Route protégée pour recruteurs et admins uniquement
   { 
     path: 'publier-offre', 

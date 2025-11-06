@@ -28,18 +28,19 @@ export default [
   { path: 'connexion', component: ConnexionComponent },
   { path: 'register', component: RegisterComponent },
   { path: 'entreprise', component: EntrepriseComponent },
-  { path: 'mon-entreprise', component: MonEntrepriseComponent, canActivate: [authGuard], data: { roles: ['Recruteur'] } },
+  { path: 'mon-entreprise', component: MonEntrepriseComponent, canActivate: [authGuard], data: { roles: ['Recruteur', 'community_manager'] } },
   { path: 'role', component: RoleComponent },
   { path: 'pays', component: PaysComponent },
-  { path: 'offre', component: OffreComponent , canActivate: [authGuard], data: { roles: ['Recruteur', 'Administrateur'] } },
+  { path: 'offre', component: OffreComponent , canActivate: [authGuard], data: { roles: ['Recruteur', 'Administrateur', 'community_manager'] } },
   { path : 'categorie', component: CategorieComponent },
   { path: 'publicite', component: PubliciteComponent }, 
   { path: 'conseil', component: ConseilComponent },
   { path: 'notification', component: NotificationComponent },
-  { path: 'candidature', component: CandidaturesComponent },
+  { path: 'candidature', component: CandidaturesComponent , canActivate: [authGuard], data: { roles: ['Recruteur', 'Administrateur', 'community_manager', 'Candidat'] } },
   { path: 'user', component: UserComponent}, 
   { path: 'profil', component: ProfilComponent},
   { path: 'empty', component: Empty },
   { path: '**', redirectTo: '/notfound' },
 ] as Routes;
 ;
+ 

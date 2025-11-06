@@ -23,9 +23,18 @@ import { UserService } from './user.service';
 import { User } from './user.model';
 import { RoleService } from '../role/role.service'; // Ajustez le chemin selon votre structure
 import { Role } from '../role/role.model'; // Ajustez le chemin selon votre structure
-import { imageUrl } from '../../../Share/const';
+import { BackendURL, imageUrl } from '../../../Share/const';
+import { HttpClient } from '@angular/common/http';
+import { EntrepriseService } from '../entreprise/entreprise.service';
+import { MultiSelectModule } from 'primeng/multiselect';
+import { DividerModule } from 'primeng/divider';
 
-type UiUser = User & { roleLabel?: string; roleId?: number }; // Changé en number
+type UiUser = User & { 
+  roleLabel?: string; 
+  roleId?: number;
+  roles?: any[]; 
+  selectedRoleIds?: number[]; 
+};
 
 @Component({
   selector: 'app-user',
@@ -45,7 +54,9 @@ type UiUser = User & { roleLabel?: string; roleId?: number }; // Changé en numb
     ConfirmDialogModule,
     IconFieldModule,
     InputIconModule,
-    DropdownModule
+    DropdownModule,
+    MultiSelectModule,
+    DividerModule
   ],
   providers: [MessageService, UserService, ConfirmationService, RoleService],
   templateUrl: './user.component.html',
@@ -60,6 +71,13 @@ export class UserComponent implements OnInit { // Corrigé le nom de la classe (
   userDetailsDialog = false;
   selectedUserForDetails: any = null;
   loading = signal(false);
+
+  entrepriseAssignmentDialog = false;
+  selectedUserForEntreprises: UiUser | null = null;
+  assignedEntreprises: any[] = [];
+  availableEntreprises: any[] = [];
+  allEntreprises: any[] = [];
+  selectedEntrepriseToAdd: number | null = null;
 
   @ViewChild('dt') dt!: Table;
 
@@ -80,12 +98,15 @@ export class UserComponent implements OnInit { // Corrigé le nom de la classe (
     private messageService: MessageService,
     private confirmationService: ConfirmationService,
     private cdRef: ChangeDetectorRef,
-    private roleService: RoleService
+    private roleService: RoleService,
+    private http: HttpClient,
+    private entrepriseService: EntrepriseService
   ) {}
 
   ngOnInit() {
     this.loadRoles(); // Charger les rôles d'abord
     this.loadUsers();
+    this.loadAllEntreprises();
   }
 
   /** Charger les rôles depuis l'API */
@@ -93,13 +114,11 @@ export class UserComponent implements OnInit { // Corrigé le nom de la classe (
     this.roleService.getRoles().subscribe({
       next: (roles: Role[]) => {
         console.log('Rôles chargés:', roles);
-        // Convertir pour le dropdown PrimeNG avec conversion explicite
         this.roles = roles.map(role => ({
           label: role.nom || '',
-          value: Number(role.id) || 0 // Conversion explicite en number
+          value: Number(role.id) || 0
         }));
         
-        // Créer les options pour le filtre par rôle
         this.roleFilterOptions = [
           { label: 'Tous les rôles', value: null },
           ...roles.map(role => ({
@@ -108,12 +127,11 @@ export class UserComponent implements OnInit { // Corrigé le nom de la classe (
           }))
         ];
         
-        console.log('Rôles formatés pour dropdown:', this.roles);
-        console.log('Options de filtre:', this.roleFilterOptions);
+        console.log('Rôles formatés:', this.roles);
         this.cdRef.detectChanges();
       },
       error: err => {
-        console.error('Erreur lors du chargement des rôles:', err);
+        console.error('Erreur chargement rôles:', err);
         this.messageService.add({
           severity: 'error',
           summary: 'Erreur',
@@ -128,35 +146,33 @@ export class UserComponent implements OnInit { // Corrigé le nom de la classe (
   loadUsers() {
     this.userService.getUsers().subscribe({
       next: (response: any) => {
-        console.log('Réponse complète de l\'API:', response);
+        console.log('Réponse API:', response);
         
-        // Vérifier la structure de la réponse
         if (response && response.success && response.data && response.data.data) {
           const users: any[] = response.data.data;
           
-          const mapped: UiUser[] = users.map((u: any) => ({
-            ...u,
-            // Extraire le premier rôle pour l'affichage
-            roleLabel: Array.isArray(u.roles) && u.roles.length > 0 
-              ? u.roles[0].nom 
-              : 'Aucun rôle',
-            // Stocker l'ID du rôle pour la modification (number)
-            roleId: Array.isArray(u.roles) && u.roles.length > 0 
-              ? u.roles[0].id 
-              : undefined
-          }));
+          const mapped: UiUser[] = users.map((u: any) => {
+            // ✅ Stocker TOUS les rôles
+            const userRoles = Array.isArray(u.roles) ? u.roles : [];
+            
+            return {
+              ...u,
+              roles: userRoles, // ✅ Tous les rôles
+              roleLabel: userRoles.length > 0 
+                ? userRoles.map((r: any) => r.nom).join(', ') 
+                : 'Aucun rôle',
+              roleId: userRoles.length > 0 ? userRoles[0].id : undefined,
+              selectedRoleIds: userRoles.map((r: any) => r.id) // ✅ IDs pour le multi-select
+            };
+          });
           
           console.log('Utilisateurs mappés:', mapped);
           this.users.set(mapped);
-          
-          // Forcer la détection des changements
           this.cdRef.detectChanges();
-        } else {
-          console.error('Structure de réponse inattendue:', response);
         }
       },
       error: err => {
-        console.error('Erreur lors du chargement des utilisateurs:', err);
+        console.error('Erreur chargement utilisateurs:', err);
         this.messageService.add({
           severity: 'error',
           summary: 'Erreur',
@@ -164,6 +180,35 @@ export class UserComponent implements OnInit { // Corrigé le nom de la classe (
           life: 3000
         });
       },
+    });
+  }
+  /**
+ * ✅ Charger toutes les entreprises via le service
+ */
+loadAllEntreprises(): void {
+    console.log('🔄 Chargement entreprises...');
+    
+    this.entrepriseService.getEntreprises({
+      page: 1,
+      per_page: 1000,
+      status: 'valide'
+    }).subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.allEntreprises = response.data.data || [];
+          console.log('✅ Entreprises chargées:', this.allEntreprises.length);
+          this.cdRef.detectChanges();
+        }
+      },
+      error: (error) => {
+        console.error('❌ Erreur chargement entreprises:', error);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Erreur',
+          detail: 'Impossible de charger les entreprises',
+          life: 3000
+        });
+      }
     });
   }
 
@@ -175,13 +220,22 @@ export class UserComponent implements OnInit { // Corrigé le nom de la classe (
   }
 
   editUser(user: UiUser) {
+    console.log('📝 Édition utilisateur:', user);
+    console.log('Rôles de l\'utilisateur:', user.roles);
+    
     this.user = { 
       ...user,
-      roleId: user.roleId, // Utiliser l'ID du rôle pour le dropdown
-      // IMPORTANT: Convertir la photo en string pour éviter les problèmes
+      // ✅ Convertir les rôles en tableau d'IDs
+      selectedRoleIds: user.roles && Array.isArray(user.roles)
+        ? user.roles.map((role: any) => Number(role.id))
+        : [],
       photo: typeof user.photo === 'string' ? user.photo : undefined
     };
+    
+    console.log('✅ Rôles sélectionnés:', this.user.selectedRoleIds);
+    
     this.previewPhotoUrl = undefined;
+    this.submitted = false;
     this.userDialog = true;
   }
 
@@ -243,92 +297,77 @@ export class UserComponent implements OnInit { // Corrigé le nom de la classe (
     });
   }
 
-  saveUser() {
-    this.submitted = true;
+  /** ✅ CORRIGÉ : saveUser avec ID dans le payload */
+saveUser() {
+  this.submitted = true;
 
-    // Validation différente pour création vs modification
-    const isCreation = !this.user.id;
-    const isValidForCreation = this.user.nom?.trim() && this.user.prenom?.trim() && 
-        this.user.email?.trim() && this.user.password?.trim() && this.user.roleId;
-    const isValidForUpdate = this.user.nom?.trim() && this.user.prenom?.trim() && 
-        this.user.email?.trim() && this.user.roleId;
+  // Validation
+  if (!this.user.selectedRoleIds || this.user.selectedRoleIds.length === 0) {
+    this.messageService.add({
+      severity: 'error',
+      summary: 'Erreur',
+      detail: 'Au moins un rôle doit être sélectionné',
+      life: 3000
+    });
+    return;
+  }
 
-    if ((isCreation && isValidForCreation) || (!isCreation && isValidForUpdate)) {
-      
-      console.log('Données utilisateur à sauvegarder:', this.user);
-      console.log('Type de photo:', typeof this.user.photo);
-      console.log('Photo est File:', this.user.photo instanceof File);
-      
-      const payload = {
-        ...this.user,
-        role_id: this.user.roleId // Envoyer role_id au backend
-      };
-      
-      // Supprimer roleId du payload pour éviter la confusion
-      delete (payload as any).roleId;
-      
-      // Pour la modification, ne pas envoyer le mot de passe s'il est vide
-      if (!isCreation && !this.user.password?.trim()) {
-        delete (payload as any).password;
-      }
-      
-      console.log('Payload final:', payload);
-      
-      const req$ = this.user.id
-        ? this.userService.updateUser(payload)
-        : this.userService.createUser(payload);
+  if (!this.user.statut) {
+    this.messageService.add({
+      severity: 'error',
+      summary: 'Erreur',
+      detail: 'Le statut est obligatoire',
+      life: 3000
+    });
+    return;
+  }
 
-      req$.subscribe({
-        next: () => {
-          this.messageService.add({
-            severity: 'success',
-            summary: 'Succès',
-            detail: this.user.id ? 'Utilisateur mis à jour' : 'Utilisateur créé',
-            life: 3000
-          });
-          this.loadUsers();
-          this.userDialog = false;
-          this.user = { statut: 'actif' };
-          this.previewPhotoUrl = undefined;
-        },
-        error: err => {
-          console.error('Erreur saveUser', err);
-          console.error('Détails erreur:', err.error?.errors);
-          
-          if (err.error?.errors) {
-            const errorMessages = Object.entries(err.error.errors)
-              .map(([field, messages]: [string, any]) => 
-                `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
-              .join('\n');
-            
-            this.messageService.add({
-              severity: 'error',
-              summary: 'Erreurs de validation',
-              detail: errorMessages,
-              life: 5000
-            });
-          } else {
-            this.messageService.add({
-              severity: 'error',
-              summary: 'Erreur',
-              detail: 'Impossible de sauvegarder l\'utilisateur',
-              life: 3000
-            });
-          }
-        },
-      });
-    } else {
-      console.error('Validation échouée:', {
-        nom: this.user.nom,
-        prenom: this.user.prenom,
-        email: this.user.email,
-        password: this.user.password,
-        roleId: this.user.roleId,
-        isCreation,
-        isValidForCreation,
-        isValidForUpdate
-      });
-    }
+  const payload: any = {
+    id: this.user.id,
+    statut: this.user.statut,
+    role_ids: this.user.selectedRoleIds
+  };
+
+  // ✅ LOG AVANT ENVOI
+  console.group('📤 ENVOI AU BACKEND');
+  console.log('Payload complet:', payload);
+  console.log('role_ids:', payload.role_ids);
+  console.log('Type de role_ids:', Array.isArray(payload.role_ids) ? 'Array' : typeof payload.role_ids);
+  console.groupEnd();
+
+  if (this.user.id) {
+    this.userService.updateUser(payload).subscribe({
+      next: (response) => {
+        console.group('📥 RÉPONSE DU BACKEND');
+        console.log('Response complète:', response);
+        console.log('Rôles retournés:', response?.data?.roles);
+        console.groupEnd();
+        
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Succès',
+          detail: 'Utilisateur mis à jour avec succès',
+          life: 3000
+        });
+        this.loadUsers();
+        this.hideDialog();
+      },
+      error: err => {
+        console.error('❌ Erreur saveUser:', err);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Erreur',
+          detail: err.error?.message || 'Erreur lors de la mise à jour',
+          life: 3000
+        });
+      },
+    });
+  }
+}
+
+  getRoleLabelById(roleId: number): string {
+    const role = this.roles.find(r => r.value === roleId);
+    return role ? role.label : 'Inconnu';
   }
 
   /** Nettoyer l'URL de prévisualisation lors de la fermeture du dialog */
@@ -655,4 +694,190 @@ testLastLogin() {
     });
   });
 }
+
+/**
+   * Vérifie si l'utilisateur est un CM
+   */
+  isCommunityManager(user: UiUser): boolean {
+    return user.roleLabel?.toLowerCase().includes('community') || false;
+  }
+
+  /**
+   * Ouvrir le modal d'attribution
+   */
+  openEntrepriseAssignmentModal(user: UiUser): void {
+    this.selectedUserForEntreprises = user;
+    this.selectedEntrepriseToAdd = null;
+    this.loadCMEntreprises(user.id!);
+    this.entrepriseAssignmentDialog = true;
+  }
+
+  /**
+   * Fermer le modal
+   */
+  closeEntrepriseAssignmentModal(): void {
+    this.entrepriseAssignmentDialog = false;
+    this.selectedUserForEntreprises = null;
+    this.assignedEntreprises = [];
+    this.availableEntreprises = [];
+    this.selectedEntrepriseToAdd = null;
+  }
+
+  /**
+   * Charger les entreprises du CM
+   */
+  loadCMEntreprises(userId: number): void {
+    this.http.get<any>(`${BackendURL}admin/community-managers/${userId}/entreprises`).subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.assignedEntreprises = response.data || [];
+          this.updateAvailableEntreprises();
+          console.log('✅ Entreprises du CM:', this.assignedEntreprises.length);
+        }
+      },
+      error: (err) => {
+        console.error('❌ Erreur chargement entreprises CM:', err);
+        this.assignedEntreprises = [];
+        this.updateAvailableEntreprises();
+      }
+    });
+  }
+
+  /**
+   * Mettre à jour les entreprises disponibles
+   */
+  updateAvailableEntreprises(): void {
+  console.log('🔄 Mise à jour des entreprises disponibles...');
+  console.log('  📊 Stats:', {
+    total: this.allEntreprises.length,
+    assignees: this.assignedEntreprises.length
+  });
+  
+  const assignedIds = this.assignedEntreprises.map(e => e.id);
+  
+  // Filtrer : pas assignées ET valides
+  this.availableEntreprises = this.allEntreprises.filter(e => 
+    !assignedIds.includes(e.id) && e.statut === 'valide'
+  );
+  
+  console.log('✅ Entreprises disponibles:', this.availableEntreprises.length);
+  
+  if (this.availableEntreprises.length === 0) {
+    console.warn('⚠️ Aucune entreprise disponible !');
+    console.log('  - Toutes assignées ?', assignedIds.length === this.allEntreprises.length);
+    console.log('  - Statuts:', this.allEntreprises.map(e => e.statut));
+  }
+  
+  this.cdRef.detectChanges();
+}
+
+  /**
+   * Ajouter une entreprise au CM
+   */
+  addEntrepriseToCM(): void {
+    if (!this.selectedUserForEntreprises || !this.selectedEntrepriseToAdd) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Attention',
+        detail: 'Veuillez sélectionner une entreprise',
+        life: 3000
+      });
+      return;
+    }
+
+    this.loading.set(true);
+
+    this.http.post<any>(`${BackendURL}admin/community-managers/assign`, {
+      user_id: this.selectedUserForEntreprises.id,
+      entreprise_id: this.selectedEntrepriseToAdd
+    }).subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.messageService.add({
+            severity: 'success',
+            summary: 'Succès',
+            detail: 'Entreprise assignée avec succès',
+            life: 3000
+          });
+          // Recharger les entreprises
+          this.loadCMEntreprises(this.selectedUserForEntreprises!.id!);
+          this.selectedEntrepriseToAdd = null;
+        }
+        this.loading.set(false);
+      },
+      error: (err) => {
+        console.error('❌ Erreur assignation:', err);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Erreur',
+          detail: err.error?.message || 'Impossible d\'assigner l\'entreprise',
+          life: 3000
+        });
+        this.loading.set(false);
+      }
+    });
+  }
+
+  /**
+   * Retirer une entreprise du CM
+   */
+  removeEntrepriseFromCM(entrepriseId: number): void {
+    if (!this.selectedUserForEntreprises) {
+      return;
+    }
+
+    this.confirmationService.confirm({
+      message: 'Êtes-vous sûr de vouloir retirer cette entreprise ?',
+      header: 'Confirmation',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'Oui, retirer',
+      rejectLabel: 'Annuler',
+      accept: () => {
+        this.loading.set(true);
+
+        this.http.post<any>(`${BackendURL}/admin/community-managers/remove`, {
+          user_id: this.selectedUserForEntreprises!.id,
+          entreprise_id: entrepriseId
+        }).subscribe({
+          next: (response) => {
+            if (response.success) {
+              this.messageService.add({
+                severity: 'success',
+                summary: 'Succès',
+                detail: 'Entreprise retirée avec succès',
+                life: 3000
+              });
+              // Recharger les entreprises
+              this.loadCMEntreprises(this.selectedUserForEntreprises!.id!);
+            }
+            this.loading.set(false);
+          },
+          error: (err) => {
+            console.error('❌ Erreur retrait:', err);
+            this.messageService.add({
+              severity: 'error',
+              summary: 'Erreur',
+              detail: 'Impossible de retirer l\'entreprise',
+              life: 3000
+            });
+            this.loading.set(false);
+          }
+        });
+      }
+    });
+  }
+
+  /**
+   * Récupérer une entreprise par ID
+   */
+  getEntrepriseById(id: number): any {
+    return this.allEntreprises.find(e => e.id === id);
+  }
+
+  /**
+   * Compter les entreprises valides
+   */
+  getValidEntreprisesCount(): number {
+    return this.assignedEntreprises.filter(e => e.statut === 'valide').length;
+  }
 }

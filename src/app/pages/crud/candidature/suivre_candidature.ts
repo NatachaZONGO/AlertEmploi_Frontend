@@ -14,6 +14,7 @@ import { CandidatureService } from './candidature.service';
 import { Candidature } from './candidature.model';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { FooterWidget } from '../../landing/components/footerwidget';
 
 // Service
 
@@ -27,7 +28,8 @@ import html2canvas from 'html2canvas';
     InputTextModule,
     ToastModule,
     RippleModule,
-    TopbarWidget
+    TopbarWidget,
+    FooterWidget
   ],
   providers: [MessageService],
   template: `
@@ -280,6 +282,7 @@ import html2canvas from 'html2canvas';
         </div>
       </section>
     </div>
+    <app-footer-widget></app-footer-widget>
   `,
   styles: [`
     :host {

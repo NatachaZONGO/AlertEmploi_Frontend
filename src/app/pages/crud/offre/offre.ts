@@ -1,10 +1,8 @@
 import { Component, OnInit, OnDestroy, ViewChild, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormsModule, ReactiveFormsModule } from '@angular/forms';
-
-import { Subject, forkJoin } from 'rxjs';
-import { takeUntil, finalize } from 'rxjs/operators';
-
+import { Observable, Subject, forkJoin, of } from 'rxjs';
+import { takeUntil, finalize, catchError, map } from 'rxjs/operators';
 import { Table, TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 import { RippleModule } from 'primeng/ripple';
@@ -29,10 +27,13 @@ import autoTable from 'jspdf-autotable';
 
 import { OffreService } from './offre.service';
 import { AuthService } from '../../auth/auth.service';
-import { Offre, TypeOffre, TypeContrat, enrichOffreForUi } from './offre.model';
+import { Offre, TypeOffre, TypeContrat } from './offre.model';
 import { EditorModule } from 'primeng/editor';
-import { OffreCreateDialogComponent } from './offre-create-dialog.component';
 import { CanSeeDirective } from '../../../Share/can_see/can_see.directive';
+import { BackendURL } from '../../../Share/const';
+import { HttpClient } from '@angular/common/http';
+import { EntrepriseService } from '../entreprise/entreprise.service'; // ✅ AJOUTÉ
+import { Router } from '@angular/router';
 
 interface Column {
   field: string;
@@ -49,8 +50,6 @@ interface ExportColumn {
   imports: [
     CommonModule,
     FormsModule,
-
-    // PrimeNG
     TableModule,
     ButtonModule,
     RippleModule,
@@ -77,7 +76,8 @@ interface ExportColumn {
 })
 export class OffreComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
-    private readonly ALLOW_ALL = true;
+  private readonly ALLOW_ALL = true;
+  
   // UI state
   offreDialog = false;
   rejetDialog = false;
@@ -86,6 +86,10 @@ export class OffreComponent implements OnInit, OnDestroy {
   featureDialogVisible = false;
   selectedOffres: Offre[] = [];
   selectedOffreForDetails?: Offre;
+  
+  // ✅ MODIFIÉ : Entreprise gérée par le CM
+  selectedEntrepriseCM: any = null;
+  
   // Signals
   offres = signal<Offre[]>([]);
   loading = signal<boolean>(false);
@@ -97,12 +101,13 @@ export class OffreComponent implements OnInit, OnDestroy {
   motifRejet = '';
 
   minDate = new Date();
+  
   // Table
   @ViewChild('dt') dt!: Table;
   cols!: Column[];
   exportColumns!: ExportColumn[];
 
-  // --- Vedette (feature) UI ---
+  // Vedette (feature) UI
   featureForm = {
     sponsored_level: 1 as number,
     mode: 'duration' as 'duration' | 'until',
@@ -110,14 +115,6 @@ export class OffreComponent implements OnInit, OnDestroy {
     featured_until: null as Date | null
   };
   selectedOffreForFeature?: Offre;
-
-
-  onCreateDialogSubmit(payload: Offre) {
-  // le child renvoie la valeur du formulaire
-  this.offre = payload;
-  this.saveOffre(); // -> ta méthode existante (create/update + toasts + reload)
-}
-
 
   // Dropdown options (typées)
   statutOptions = [
@@ -148,11 +145,18 @@ export class OffreComponent implements OnInit, OnDestroy {
     private offreService: OffreService,
     private messageService: MessageService,
     private confirmationService: ConfirmationService,
-    private authService: AuthService
+    private authService: AuthService,
+    private http: HttpClient,
+    private entrepriseService: EntrepriseService,
+    private router: Router,  
   ) {}
 
   ngOnInit(): void {
     this.role = this.authService.getUserRole() ?? '';
+    
+    if (this.role.toLowerCase() === 'community_manager') {
+      this.subscribeToEntrepriseChanges();
+    }
 
     this.cols = [
       { field: 'titre', header: 'Titre' },
@@ -175,9 +179,39 @@ export class OffreComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  // ---------- Data loading ----------
+  // ✅ AJOUTÉ : Charger l'entreprise sélectionnée depuis localStorage
+  private subscribeToEntrepriseChanges(): void {
+    console.log('👂 Écoute des changements d\'entreprise...');
+    
+    this.entrepriseService.selectedEntreprise$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (entreprise) => {
+          console.log('🔔 Notification entreprise reçue:', entreprise);
+          
+          if (entreprise) {
+            console.log('✅ Nouvelle entreprise détectée:', entreprise.nom_entreprise);
+            this.selectedEntrepriseCM = entreprise;
+            
+            // ✅ Recharger automatiquement les offres
+            console.log('🔄 Rechargement des offres...');
+            this.loadOffres();
+          } else {
+            console.log('⚠️ Aucune entreprise sélectionnée');
+            this.selectedEntrepriseCM = null;
+            this.offres.set([]);
+          }
+        },
+        error: (err) => {
+          console.error('❌ Erreur subscription entreprise:', err);
+        }
+      });
+  }
+
+  // ✅ SIMPLIFIÉ : Plus besoin de charger les entreprises
   loadInitialData(): void {
     this.loading.set(true);
+    
     forkJoin({
       categories: this.offreService.getCategories()
     })
@@ -187,135 +221,163 @@ export class OffreComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: res => {
-          // accepte plusieurs shapes
           this.categories = (res as any)?.categories ?? (res as any)?.content ?? [];
-          this.loadOffres(); // charge ensuite
+          console.log('✅ Catégories chargées:', this.categories.length);
+          
+          // ✅ Pour les non-CM, charger les offres directement
+          if (this.role.toLowerCase() !== 'community_manager') {
+            this.loadOffres();
+          } else {
+            console.log('⏳ CM détecté, attente de la sélection d\'entreprise...');
+          }
         },
-        error: _ => this.loadOffres() // on tente quand même de charger les offres
+        error: err => {
+          console.error('❌ Erreur chargement catégories:', err);
+          if (this.role.toLowerCase() !== 'community_manager') {
+            this.loadOffres();
+          }
+        }
       });
   }
 
-loadOffres(): void {
-  this.loading.set(true);
+ loadOffres(): void {
+    this.loading.set(true);
 
-  // Récupérer le rôle et le nettoyer
-  const rawRole = this.authService.getUserRole();
-  const role = rawRole?.toLowerCase()?.trim(); // Normaliser en minuscule
-  
-  // Log pour déboguer (à retirer en production)
-  console.log('🔍 Rôle de l\'utilisateur:', rawRole, '-> normalisé:', role);
-  
-  // Sélectionner le bon endpoint selon le rôle
-  const source$ = 
-    role === 'recruteur'
-      ? this.offreService.getMesOffres()
-      : this.offreService.getAdminOffres();
-
-  console.log('📡 Endpoint utilisé:', role === 'recruteur' ? 'mes-offres' : 'admin-offres');
-
-  source$
-    .pipe(finalize(() => this.loading.set(false)))
-    .subscribe({
-      next: (respOrArray: any) => {
-        console.log('📦 Réponse brute du serveur:', respOrArray);
-        
-        const rawList: any[] = Array.isArray(respOrArray)
-          ? respOrArray
-          : (respOrArray?.data?.data ?? respOrArray?.data ?? respOrArray?.content ?? []);
-
-        console.log('✅ Nombre d\'offres récupérées:', rawList.length);
-
-        const now = new Date().getTime();
-
-        const list = rawList.map((o: any) => {
-          const toDate = (v: any) => {
-            if (!v) return null;
-            if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
-            const d = new Date(v);
-            return isNaN(d.getTime()) ? null : d;
-          };
-
-          const exp = toDate(o.date_expiration);
-          const pub = toDate(o.date_publication);
-          const fu  = toDate(o.featured_until);
-
-          const isExpired = exp ? exp.getTime() < now : false;
-          const isActive  = o.statut === 'publiee' && !isExpired;
-
-          const level = Number(o.sponsored_level ?? 0);
-          const isFeaturedActive = level > 0 && (!fu || fu.getTime() > now);
-
-          const featuredBadgeLabel =
-            isFeaturedActive
-              ? (level === 3 ? 'Vedette ★★★'
-                : level === 2 ? 'Vedette ★★'
-                : 'Vedette ★')
-              : undefined;
-
-          return {
-            ...o,
-            entrepriseName: o.entreprise?.nom_entreprise ?? 'Non renseignée',
-            recruteurName: o.recruteur
-              ? `${o.recruteur.firstname ?? ''} ${o.recruteur.lastname ?? ''}`.trim() || 'Non renseigné'
-              : 'Non renseigné',
-            categorieName: o.categorie?.nom ?? 'Non classée',
-            validateurName: o.validateur
-              ? `${o.validateur.firstname ?? ''} ${o.validateur.lastname ?? ''}`.trim() || undefined
-              : undefined,
-            date_publication: pub ?? o.date_publication,
-            date_expiration: exp ?? o.date_expiration,
-            isExpired,
-            isActive,
-            sponsored_level: level,
-            featured_until: fu ?? o.featured_until,
-            isFeaturedActive,
-            featuredBadgeLabel,
-          };
-        });
-
-        const sorted = [...list].sort((a, b) => {
-          if (a.isFeaturedActive && !b.isFeaturedActive) return -1;
-          if (!a.isFeaturedActive && b.isFeaturedActive) return 1;
-          const la = Number(a.sponsored_level ?? 0);
-          const lb = Number(b.sponsored_level ?? 0);
-          if (la !== lb) return lb - la;
-          const da = a.created_at ? new Date(a.created_at).getTime() : 0;
-          const db = b.created_at ? new Date(b.created_at).getTime() : 0;
-          return db - da;
-        });
-
-        this.offres.set(sorted as Offre[]);
-        console.log('🎯 Offres finales affichées:', sorted.length);
-      },
-      error: (err) => {
-        console.error('❌ Erreur chargement offres:', err);
-        console.error('Détails de l\'erreur:', {
-          status: err.status,
-          message: err.message,
-          error: err.error
-        });
-        this.showErrorMessage('Erreur lors du chargement des offres');
+    const rawRole = this.authService.getUserRole();
+    const role = rawRole?.toLowerCase()?.trim();
+    
+    console.log('📋 loadOffres() appelé');
+    console.log('  - Rôle:', role);
+    
+    let entrepriseId: number | undefined = undefined;
+    
+    if (role === 'community_manager') {
+      if (!this.selectedEntrepriseCM) {
+        console.log('⚠️ CM sans entreprise sélectionnée, annulation du chargement');
+        this.loading.set(false);
         this.offres.set([]);
+        
+        // ✅ Afficher un message à l'utilisateur
+        this.messageService.add({
+          severity: 'info',
+          summary: 'Aucune entreprise sélectionnée',
+          detail: 'Veuillez sélectionner une entreprise à gérer depuis la page "Entreprises"',
+          life: 4000
+        });
+        return;
       }
-    });
-}
+      
+      entrepriseId = this.selectedEntrepriseCM.id;
+      console.log('🏢 Filtrage par entreprise:', {
+        id: entrepriseId,
+        nom: this.selectedEntrepriseCM.nom_entreprise
+      });
+    }
+    
+    const source$ = 
+      role === 'recruteur'
+        ? this.offreService.getMesOffres()
+        : role === 'community_manager'
+        ? this.offreService.getCommunityManagerOffres(entrepriseId)
+        : this.offreService.getAdminOffres();
 
+    console.log('📡 Endpoint utilisé:', 
+      role === 'recruteur' ? 'mes-offres' : 
+      role === 'community_manager' ? `community/offres?entreprise_id=${entrepriseId}` : 
+      'offres (admin)'
+    );
 
+    source$
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => this.loading.set(false))
+      )
+      .subscribe({
+        next: (respOrArray: any) => {
+          console.log('📦 Réponse brute du serveur:', respOrArray);
+          
+          const rawList: any[] = Array.isArray(respOrArray)
+            ? respOrArray
+            : (respOrArray?.data?.data ?? respOrArray?.data ?? respOrArray?.content ?? []);
 
+          console.log('✅ Nombre d\'offres récupérées:', rawList.length);
+          
+          if (role === 'community_manager' && this.selectedEntrepriseCM) {
+            console.log(`🎯 Offres filtrées pour ${this.selectedEntrepriseCM.nom_entreprise}`);
+          }
 
+          const now = new Date().getTime();
 
-  mapOffresWithDetails(offres: Offre[]): void {
-    const now = new Date();
-    const mapped = offres.map(o => ({
-      ...o,
-      entrepriseName: o.entreprise?.nom_entreprise || 'Non renseignée',
-      recruteurName: o.recruteur ? `${o.recruteur.firstname ?? ''} ${o.recruteur.lastname ?? ''}`.trim() || 'Non renseigné' : 'Non renseigné',
-      categorieName: o.categorie?.nom || 'Non classée',
-      validateurName: o.validateur ? `${o.validateur.firstname ?? ''} ${o.validateur.lastname ?? ''}`.trim() || null : null,
-      isExpired: o.date_expiration ? new Date(o.date_expiration) < now : false,
-      isActive: o.statut === 'publiee' && (o.date_expiration ? new Date(o.date_expiration) >= now : true)
-    }));
-    this.offres.set(mapped as Offre[]);
+          const list = rawList.map((o: any) => {
+            const toDate = (v: any) => {
+              if (!v) return null;
+              if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+              const d = new Date(v);
+              return isNaN(d.getTime()) ? null : d;
+            };
+
+            const exp = toDate(o.date_expiration);
+            const pub = toDate(o.date_publication);
+            const fu  = toDate(o.featured_until);
+
+            const isExpired = exp ? exp.getTime() < now : false;
+            const isActive  = o.statut === 'publiee' && !isExpired;
+
+            const level = Number(o.sponsored_level ?? 0);
+            const isFeaturedActive = level > 0 && (!fu || fu.getTime() > now);
+
+            const featuredBadgeLabel =
+              isFeaturedActive
+                ? (level === 3 ? 'Vedette ★★★'
+                  : level === 2 ? 'Vedette ★★'
+                  : 'Vedette ★')
+                : undefined;
+
+            return {
+              ...o,
+              entrepriseName: o.entreprise?.nom_entreprise ?? 'Non renseignée',
+              recruteurName: o.recruteur
+                ? `${o.recruteur.firstname ?? ''} ${o.recruteur.lastname ?? ''}`.trim() || 'Non renseigné'
+                : 'Non renseigné',
+              categorieName: o.categorie?.nom ?? 'Non classée',
+              validateurName: o.validateur
+                ? `${o.validateur.firstname ?? ''} ${o.validateur.lastname ?? ''}`.trim() || undefined
+                : undefined,
+              date_publication: pub ?? o.date_publication,
+              date_expiration: exp ?? o.date_expiration,
+              isExpired,
+              isActive,
+              sponsored_level: level,
+              featured_until: fu ?? o.featured_until,
+              isFeaturedActive,
+              featuredBadgeLabel,
+            };
+          });
+
+          const sorted = [...list].sort((a, b) => {
+            if (a.isFeaturedActive && !b.isFeaturedActive) return -1;
+            if (!a.isFeaturedActive && b.isFeaturedActive) return 1;
+            const la = Number(a.sponsored_level ?? 0);
+            const lb = Number(b.sponsored_level ?? 0);
+            if (la !== lb) return lb - la;
+            const da = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const db = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return db - da;
+          });
+
+          this.offres.set(sorted as Offre[]);
+          console.log('🎯 Offres finales affichées:', sorted.length);
+        },
+        error: (err) => {
+          console.error('❌ Erreur chargement offres:', err);
+          this.showErrorMessage('Erreur lors du chargement des offres');
+          this.offres.set([]);
+        }
+      });
+  }
+
+  changerEntreprise(): void {
+    this.router.navigate(['/dashboard/entreprises']);
   }
 
   // ---------- Table/filter ----------
@@ -323,10 +385,43 @@ loadOffres(): void {
     table.filterGlobal((event.target as HTMLInputElement).value, 'contains');
   }
 
-  // ---------- Dialogs/open/edit ----------
+  // ✅ MODIFIÉ : Ouvrir le dialog de création
   openNew(): void {
-    const currentUser = this.authService.getCurrentUser();
-    this.offre = {
+  const currentUser = this.authService.getCurrentUser();
+  
+  let recruteurId: number | null = null;
+  let entrepriseId: number | null = null;
+  
+  if (this.role.toLowerCase() === 'recruteur') {
+    recruteurId = currentUser?.id || null;
+  } else if (this.role.toLowerCase() === 'community_manager') {
+    if (!this.selectedEntrepriseCM) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Aucune entreprise sélectionnée',
+        detail: 'Veuillez d\'abord gérer une entreprise depuis la page "Entreprises"',
+        life: 3000
+      });
+      return;
+    }
+    // ✅ IMPORTANT : Utiliser user_id (propriétaire), pas l'ID du CM
+    recruteurId = this.selectedEntrepriseCM.user_id; // ← Devrait être 22
+    entrepriseId = this.selectedEntrepriseCM.id; // ← Devrait être 9
+    
+    // ✅ AJOUTÉ : Log de débogage
+    console.log('🔍 Debug CM:');
+    console.log('  - selectedEntrepriseCM:', this.selectedEntrepriseCM);
+    console.log('  - user_id (recruteur):', this.selectedEntrepriseCM.user_id);
+    console.log('  - id (entreprise):', this.selectedEntrepriseCM.id);
+    console.log('  - CM actuel:', currentUser?.id);
+  }
+  
+  console.log('✅ Création offre');
+  console.log('  - Entreprise:', this.selectedEntrepriseCM?.nom_entreprise || 'N/A');
+  console.log('  - entreprise_id:', entrepriseId);
+  console.log('  - recruteur_id:', recruteurId); // ← Devrait afficher 22
+  
+  this.offre = {
     titre: '',
     description: '',
     experience: '',
@@ -337,12 +432,14 @@ loadOffres(): void {
     date_publication: new Date(),
     date_expiration: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     salaire: 0,
-    recruteur_id: currentUser?.id || 1 
-    } as Offre;
+    recruteur_id: recruteurId, // ← Devrait être 22
+    entreprise_id: entrepriseId, // ← Devrait être 9
+    categorie_id: undefined
+  } as Offre;
 
-    this.submitted = false;
-    this.offreDialog = true;
-  }
+  this.submitted = false;
+  this.offreDialog = true;
+}
 
   editOffre(offre: Offre): void {
     this.offre = { ...offre };
@@ -361,41 +458,73 @@ loadOffres(): void {
     this.submitted = false;
   }
 
-  // ---------- Create/Update ----------
+  // ✅ MODIFIÉ : Sauvegarder l'offre
   saveOffre(): void {
-  this.submitted = true;
+    this.submitted = true;
 
-  if (!this.offre?.titre?.trim() || !this.offre.type_offre || !this.offre.type_contrat) {
-    this.showWarnMessage('Veuillez remplir les champs obligatoires (Titre, Type d\'offre, Type de contrat).');
-    return;
+    if (!this.offre?.titre?.trim() || !this.offre.type_offre || !this.offre.type_contrat) {
+      this.showWarnMessage('Veuillez remplir les champs obligatoires');
+      return;
+    }
+    
+    if (!this.offre.recruteur_id) {
+      this.showWarnMessage('Erreur : recruteur_id manquant');
+      return;
+    }
+
+    console.log('📤 Sauvegarde offre');
+    console.log('  - recruteur_id:', this.offre.recruteur_id);
+    console.log('  - Entreprise:', this.selectedEntrepriseCM?.nom_entreprise || 'N/A');
+    console.log('  - Payload:', this.offre);
+
+    this.loading.set(true);
+    const req$ = this.offre.id
+      ? this.offreService.updateOffre(this.offre.id, this.offre)
+      : this.offreService.createOffre(this.offre);
+
+    req$
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => this.loading.set(false))
+      )
+      .subscribe({
+        next: (response) => {
+          console.log('✅ Offre sauvegardée:', response);
+          this.showSuccessMessage(this.offre.id ? 'Offre mise à jour' : 'Offre créée');
+          this.loadOffres();
+          this.offreDialog = false;
+          this.offre = {} as Offre;
+        },
+        error: err => {
+          console.error('❌ Erreur saveOffre:', err);
+          console.error('Détails:', err.error);
+          this.showErrorMessage(err.error?.message || 'Erreur lors de la sauvegarde');
+        }
+      });
   }
 
-  this.loading.set(true);
-  const req$ = this.offre.id
-    ? this.offreService.updateOffre(this.offre.id, this.offre)
-    : this.offreService.createOffre(this.offre);
+  // ✅ AJOUTÉ : Helper pour obtenir l'URL de l'image
+  getImageUrl(imagePath: string): string {
+    if (!imagePath) return '';
+    
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    
+    return `${BackendURL.replace('/api/', '')}/storage/${imagePath}`;
+  }
 
-  req$
-    .pipe(
-      takeUntil(this.destroy$),
-      finalize(() => this.loading.set(false))
-    )
-    .subscribe({
-      next: () => {
-        this.showSuccessMessage(this.offre.id ? 'Offre mise à jour avec succès' : 'Offre créée avec succès');
-        this.loadOffres();
-        this.offreDialog = false;
-        this.offre = {} as Offre;
-      },
-      error: err => {
-        console.error('Erreur saveOffre:', err);
-        console.error('Détails erreur:', err.error); // Pour voir l'erreur 422
-        this.showErrorMessage(this.offre.id ? 'Erreur lors de la mise à jour de l\'offre' : 'Erreur lors de la création de l\'offre');
-      }
-    });
-}
+  // ✅ AJOUTÉ : Helper pour le statut d'entreprise
+  getStatusSeverity(statut: string): "success" | "info" | "warn" | "danger" | "secondary" {
+    switch (statut) {
+      case 'valide': return 'success';
+      case 'en attente': return 'warn';
+      case 'refuse': return 'danger';
+      default: return 'secondary';
+    }
+  }
 
-  // ---------- Delete (ConfirmDialog global) ----------
+  // ---------- Delete ----------
   deleteOffre(offre: Offre): void {
     if (!offre?.id) return;
 
@@ -431,53 +560,51 @@ loadOffres(): void {
     const plainText = this.getPlainText(description);
     if (plainText.length <= 50) return description;
     
-    // Si trop long, on tronque le texte brut et on remet en HTML simple
     const truncated = plainText.substring(0, 50) + '...';
     return `<span>${truncated}</span>`;
   }
 
   getPlainText(html: string): string {
-  if (!html) return '';
-  // Supprime les balises HTML pour le title
-  const tmp = document.createElement('div');
-  tmp.innerHTML = html;
-  return tmp.textContent || tmp.innerText || '';
-}
+    if (!html) return '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || '';
+  }
 
-deleteSelectedOffres(): void {
-  if (!this.selectedOffres || this.selectedOffres.length === 0) return;
+  deleteSelectedOffres(): void {
+    if (!this.selectedOffres || this.selectedOffres.length === 0) return;
 
-  this.confirmationService.confirm({
-    message: `Êtes-vous sûr de vouloir supprimer ${this.selectedOffres.length} offre(s) sélectionnée(s) ?`,
-    header: 'Confirmation de suppression multiple',
-    icon: 'pi pi-exclamation-triangle',
-    acceptLabel: 'Oui',
-    rejectLabel: 'Non',
-    accept: () => {
-      this.loading.set(true);
-      
-      const deletePromises = this.selectedOffres.map(offre => 
-        this.offreService.deleteOffre(offre.id!)
-      );
+    this.confirmationService.confirm({
+      message: `Êtes-vous sûr de vouloir supprimer ${this.selectedOffres.length} offre(s) sélectionnée(s) ?`,
+      header: 'Confirmation de suppression multiple',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'Oui',
+      rejectLabel: 'Non',
+      accept: () => {
+        this.loading.set(true);
+        
+        const deletePromises = this.selectedOffres.map(offre => 
+          this.offreService.deleteOffre(offre.id!)
+        );
 
-      Promise.all(deletePromises)
-        .then(() => {
-          this.showSuccessMessage(`${this.selectedOffres.length} offre(s) supprimée(s) avec succès`);
-          this.selectedOffres = []; // Vider la sélection
-          this.loadOffres(); // Recharger la liste
-        })
-        .catch(err => {
-          console.error('Erreur suppression multiple:', err);
-          this.showErrorMessage('Erreur lors de la suppression des offres');
-        })
-        .finally(() => {
-          this.loading.set(false);
-        });
-    }
-  });
-}
+        Promise.all(deletePromises)
+          .then(() => {
+            this.showSuccessMessage(`${this.selectedOffres.length} offre(s) supprimée(s) avec succès`);
+            this.selectedOffres = [];
+            this.loadOffres();
+          })
+          .catch(err => {
+            console.error('Erreur suppression multiple:', err);
+            this.showErrorMessage('Erreur lors de la suppression des offres');
+          })
+          .finally(() => {
+            this.loading.set(false);
+          });
+      }
+    });
+  }
 
-  // ---------- Workflow (validation / publication / fermeture / rejet) ----------
+  // ---------- Workflow ----------
   soumettreValidation(offre: Offre): void {
     if (!offre?.id) return;
     this.loading.set(true);
@@ -565,126 +692,120 @@ deleteSelectedOffres(): void {
       });
   }
 
-    fermerOffre(offre: Offre): void {
-      if (!offre?.id) return;
-      this.loading.set(true);
-      this.offreService.fermerOffre(offre.id)
-        .pipe(
-          takeUntil(this.destroy$),
-          finalize(() => this.loading.set(false))
-        )
-        .subscribe({
-          next: () => {
-            this.showSuccessMessage('Offre fermée');
-            this.loadOffres();
-          },
-          error: err => {
-            console.error('Erreur fermerOffre:', err);
-            this.showErrorMessage('Erreur lors de la fermeture');
-          }
-        });
-    }
+  fermerOffre(offre: Offre): void {
+    if (!offre?.id) return;
+    this.loading.set(true);
+    this.offreService.fermerOffre(offre.id)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => this.loading.set(false))
+      )
+      .subscribe({
+        next: () => {
+          this.showSuccessMessage('Offre fermée');
+          this.loadOffres();
+        },
+        error: err => {
+          console.error('Erreur fermerOffre:', err);
+          this.showErrorMessage('Erreur lors de la fermeture');
+        }
+      });
+  }
 
-    openFeatureDialog(offre: Offre): void {
+  openFeatureDialog(offre: Offre): void {
     this.selectedOffreForFeature = offre;
     this.featureForm = { sponsored_level: 1, mode: 'duration', duration_days: 30, featured_until: null };
     this.featureDialogVisible = true;
   }
 
-    submitFeature(): void {
-      if (!this.selectedOffreForFeature?.id) return;
+  submitFeature(): void {
+    if (!this.selectedOffreForFeature?.id) return;
 
-      const body: any = { sponsored_level: this.featureForm.sponsored_level };
-      if (this.featureForm.mode === 'duration') {
-        body.duration_days = Math.max(1, Number(this.featureForm.duration_days || 30));
-      } else if (this.featureForm.featured_until instanceof Date) {
-        // format YYYY-MM-DD HH:MM:SS si utile côté API
-        const d = this.featureForm.featured_until;
-        const pad = (n: number) => String(n).padStart(2, '0');
-        body.featured_until = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} 23:59:59`;
-      }
-
-      this.loading.set(true);
-      this.offreService.featureOffre(this.selectedOffreForFeature.id, body)
-        .pipe(finalize(() => this.loading.set(false)))
-        .subscribe({
-          next: () => {
-            this.showSuccessMessage('Offre passée en vedette');
-            this.featureDialogVisible = false;
-            this.loadOffres();
-          },
-          error: (e) => {
-            console.error(e);
-            this.showErrorMessage('Impossible de passer en vedette');
-          }
-        });
+    const body: any = { sponsored_level: this.featureForm.sponsored_level };
+    if (this.featureForm.mode === 'duration') {
+      body.duration_days = Math.max(1, Number(this.featureForm.duration_days || 30));
+    } else if (this.featureForm.featured_until instanceof Date) {
+      const d = this.featureForm.featured_until;
+      const pad = (n: number) => String(n).padStart(2, '0');
+      body.featured_until = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} 23:59:59`;
     }
 
-    unfeature(offre: Offre): void {
-      if (!offre?.id) return;
-      this.loading.set(true);
-      this.offreService.unfeatureOffre(offre.id)
-        .pipe(finalize(() => this.loading.set(false)))
-        .subscribe({
-          next: () => {
-            this.showSuccessMessage('Mise en vedette retirée');
-            this.loadOffres();
-          },
-          error: (e) => {
-            console.error(e);
-            this.showErrorMessage('Impossible de retirer la vedette');
-          }
-        });
+    this.loading.set(true);
+    this.offreService.featureOffre(this.selectedOffreForFeature.id, body)
+      .pipe(finalize(() => this.loading.set(false)))
+      .subscribe({
+        next: () => {
+          this.showSuccessMessage('Offre passée en vedette');
+          this.featureDialogVisible = false;
+          this.loadOffres();
+        },
+        error: (e) => {
+          console.error(e);
+          this.showErrorMessage('Impossible de passer en vedette');
+        }
+      });
+  }
+
+  unfeature(offre: Offre): void {
+    if (!offre?.id) return;
+    this.loading.set(true);
+    this.offreService.unfeatureOffre(offre.id)
+      .pipe(finalize(() => this.loading.set(false)))
+      .subscribe({
+        next: () => {
+          this.showSuccessMessage('Mise en vedette retirée');
+          this.loadOffres();
+        },
+        error: (e) => {
+          console.error(e);
+          this.showErrorMessage('Impossible de retirer la vedette');
+        }
+      });
+  }
+
+  getFeatureSeverity(level?: number | null): "success" | "info" | "warn" | "danger" | "secondary" | "contrast" {
+    const n = Number(level ?? 0);
+    if (n >= 3) return 'danger';
+    if (n === 2) return 'warn';
+    if (n === 1) return 'info';
+    return 'secondary';
+  }
+  
+  getFeatureLabel(level?: number | null): string {
+    const n = Number(level ?? 0);
+    return n > 0 ? `Vedette L${n}` : '—';
+  }
+
+  viewDetails(offre: Offre): void {
+    this.selectedOffreForDetails = { ...offre };
+    this.detailsDialog = true;
+  }
+
+  hideDetailsDialog(): void {
+    this.detailsDialog = false;
+    this.selectedOffreForDetails = undefined;
+  }
+
+  editFromDetails(): void {
+    if (this.selectedOffreForDetails) {
+      this.hideDetailsDialog();
+      this.editOffre(this.selectedOffreForDetails);
     }
+  }
 
-    // Helpers UI pour badge vedette
-    getFeatureSeverity(level?: number | null): "success" | "info" | "warn" | "danger" | "secondary" | "contrast" {
-      const n = Number(level ?? 0);
-      if (n >= 3) return 'danger';
-      if (n === 2) return 'warn';
-      if (n === 1) return 'info';
-      return 'secondary';
+  validerFromDetails(): void {
+    if (this.selectedOffreForDetails) {
+      this.hideDetailsDialog();
+      this.validerOffre(this.selectedOffreForDetails);
     }
-    getFeatureLabel(level?: number | null): string {
-      const n = Number(level ?? 0);
-      return n > 0 ? `Vedette L${n}` : '—';
-    }
-
-
-
-    viewDetails(offre: Offre): void {
-      this.selectedOffreForDetails = { ...offre };
-      this.detailsDialog = true;
-    }
-
-    hideDetailsDialog(): void {
-      this.detailsDialog = false;
-      this.selectedOffreForDetails = undefined;
-    }
-
-    editFromDetails(): void {
-      if (this.selectedOffreForDetails) {
-        this.hideDetailsDialog();
-        this.editOffre(this.selectedOffreForDetails);
-      }
-    }
-
-    validerFromDetails(): void {
-      if (this.selectedOffreForDetails) {
-        this.hideDetailsDialog();
-        this.validerOffre(this.selectedOffreForDetails);
-      }
-    }
-    
-    // TODO: Implémenter un dialog de détails si nécessaire
-
+  }
 
   // ---------- Helpers ----------
   getSeverity(statut: string) {
     switch (statut) {
       case 'publiee': return 'success';
       case 'validee': return 'info';
-      case 'en_attente_validation': return 'warn'; // Tag supporte 'warning'
+      case 'en_attente_validation': return 'warn';
       case 'rejetee': return 'danger';
       case 'fermee': return 'secondary';
       case 'expiree': return 'contrast';
@@ -693,48 +814,44 @@ deleteSelectedOffres(): void {
     }
   }
 
-  // Ajouter ces méthodes dans votre classe OffreComponent
-
-// Corrigez le type de retour de vos méthodes :
-
-getContratSeverity(typeContrat: string): "success" | "info" | "warn" | "danger" | "secondary" | "contrast" {
-  switch (typeContrat?.toLowerCase()) {
-    case 'cdi': return 'success';
-    case 'cdd': return 'warn';
-    case 'stage': return 'info';
-    case 'freelance': return 'secondary';
-    case 'alternance': return 'secondary'; // Changé car 'primary' n'existe pas dans PrimeNG Tag
-    case 'contrat_pro': return 'contrast';
-    default: return 'secondary';
+  getContratSeverity(typeContrat: string): "success" | "info" | "warn" | "danger" | "secondary" | "contrast" {
+    switch (typeContrat?.toLowerCase()) {
+      case 'cdi': return 'success';
+      case 'cdd': return 'warn';
+      case 'stage': return 'info';
+      case 'freelance': return 'secondary';
+      case 'alternance': return 'secondary';
+      case 'contrat_pro': return 'contrast';
+      default: return 'secondary';
+    }
   }
-}
 
-getStatutSeverity(statut: string): "success" | "info" | "warn" | "danger" | "secondary" | "contrast" {
-  switch (statut) {
-    case 'publiee': return 'success';
-    case 'validee': return 'info';
-    case 'en_attente_validation': return 'warn';
-    case 'rejetee': return 'danger';
-    case 'fermee': return 'secondary';
-    case 'expiree': return 'contrast';
-    case 'brouillon': return 'secondary';
-    default: return 'secondary';
+  getStatutSeverity(statut: string): "success" | "info" | "warn" | "danger" | "secondary" | "contrast" {
+    switch (statut) {
+      case 'publiee': return 'success';
+      case 'validee': return 'info';
+      case 'en_attente_validation': return 'warn';
+      case 'rejetee': return 'danger';
+      case 'fermee': return 'secondary';
+      case 'expiree': return 'contrast';
+      case 'brouillon': return 'secondary';
+      default: return 'secondary';
+    }
   }
-}
 
-  // Messages utilitaires (mêmes patterns que Entreprise)
   private showSuccessMessage(detail: string) {
     this.messageService.add({ severity: 'success', summary: 'Succès', detail, life: 3000 });
   }
+  
   private showErrorMessage(detail: string) {
     this.messageService.add({ severity: 'error', summary: 'Erreur', detail, life: 5000 });
   }
+  
   private showWarnMessage(detail: string) {
     this.messageService.add({ severity: 'warn', summary: 'Attention', detail, life: 4000 });
   }
 
   // ---------- Exports ----------
-
   getExportLabel(format: string): string {
     const selectedCount = this.selectedOffres?.length || 0;
     if (selectedCount > 0) {
@@ -743,92 +860,84 @@ getStatutSeverity(statut: string): "success" | "info" | "warn" | "danger" | "sec
     return `Exporter ${format}`;
   }
 
-  // Méthode utilitaire pour obtenir les données à exporter
   private getDataToExport(): Offre[] {
     return this.selectedOffres && this.selectedOffres.length > 0 
       ? this.selectedOffres 
       : this.offres();
   }
+
   exportCSV(): void {
-  const dataToExport = this.getDataToExport();
-  const selectedCount = this.selectedOffres?.length || 0;
-  
-  if (selectedCount > 0) {
-    // Export sélectif
-    this.confirmationService.confirm({
-      message: `Voulez-vous exporter seulement les ${selectedCount} offre(s) sélectionnée(s) ?`,
-      header: 'Confirmation d\'export',
-      icon: 'pi pi-question-circle',
-      acceptLabel: 'Sélection uniquement',
-      rejectLabel: 'Toutes les offres',
-      accept: () => {
-        this.executeCSVExport(this.selectedOffres);
-      },
-      reject: () => {
-        this.executeCSVExport(this.offres());
-      }
-    });
-  } else {
-    // Export de toutes les données
-    this.executeCSVExport(this.offres());
+    const dataToExport = this.getDataToExport();
+    const selectedCount = this.selectedOffres?.length || 0;
+    
+    if (selectedCount > 0) {
+      this.confirmationService.confirm({
+        message: `Voulez-vous exporter seulement les ${selectedCount} offre(s) sélectionnée(s) ?`,
+        header: 'Confirmation d\'export',
+        icon: 'pi pi-question-circle',
+        acceptLabel: 'Sélection uniquement',
+        rejectLabel: 'Toutes les offres',
+        accept: () => {
+          this.executeCSVExport(this.selectedOffres);
+        },
+        reject: () => {
+          this.executeCSVExport(this.offres());
+        }
+      });
+    } else {
+      this.executeCSVExport(this.offres());
+    }
   }
-}
 
   exportPDF(): void {
-  const selectedCount = this.selectedOffres?.length || 0;
-  
-  if (selectedCount > 0) {
-    // Export sélectif
-    this.confirmationService.confirm({
-      message: `Voulez-vous exporter seulement les ${selectedCount} offre(s) sélectionnée(s) ?`,
-      header: 'Confirmation d\'export',
-      icon: 'pi pi-question-circle',
-      acceptLabel: 'Sélection uniquement',
-      rejectLabel: 'Toutes les offres',
-      accept: () => {
-        this.executePDFExport(this.selectedOffres);
-      },
-      reject: () => {
-        this.executePDFExport(this.offres());
-      }
-    });
-  } else {
-    // Export de toutes les données
-    this.executePDFExport(this.offres());
-  }
-}
-
-// Méthodes d'exécution séparées
-private executeCSVExport(data: Offre[]): void {
-  if (!data || data.length === 0) {
-    this.showWarnMessage('Aucune donnée à exporter');
-    return;
+    const selectedCount = this.selectedOffres?.length || 0;
+    
+    if (selectedCount > 0) {
+      this.confirmationService.confirm({
+        message: `Voulez-vous exporter seulement les ${selectedCount} offre(s) sélectionnée(s) ?`,
+        header: 'Confirmation d\'export',
+        icon: 'pi pi-question-circle',
+        acceptLabel: 'Sélection uniquement',
+        rejectLabel: 'Toutes les offres',
+        accept: () => {
+          this.executePDFExport(this.selectedOffres);
+        },
+        reject: () => {
+          this.executePDFExport(this.offres());
+        }
+      });
+    } else {
+      this.executePDFExport(this.offres());
+    }
   }
 
-  // Créer les données CSV
-  const csvData = data.map((offre: any) => ({
-    'ID': offre.id?.toString() || '',
-    'Titre': offre.titre || '',
-    'Entreprise': offre.entreprise?.nom_entreprise || '',
-    'Type Offre': offre.type_offre || '',
-    'Type Contrat': offre.type_contrat || '',
-    'Localisation': offre.localisation || '',
-    'Salaire': offre.salaire?.toString() || '0',
-    'Expérience': offre.experience || '',
-    'Date Publication': offre.date_publication ? new Date(offre.date_publication).toLocaleDateString('fr-FR') : '',
-    'Date Expiration': offre.date_expiration ? new Date(offre.date_expiration).toLocaleDateString('fr-FR') : '',
-    'Statut': offre.statut || '',
-    'Créée le': offre.created_at ? new Date(offre.created_at).toLocaleDateString('fr-FR') : ''
-  }));
+  private executeCSVExport(data: Offre[]): void {
+    if (!data || data.length === 0) {
+      this.showWarnMessage('Aucune donnée à exporter');
+      return;
+    }
 
-  // Convertir en CSV
-  const headers = Object.keys(csvData[0]);
-  const csvContent = [
-    headers.join(','),
-    ...csvData.map(row => headers.map(header => `"${row[header as keyof typeof row] || ''}"`).join(','))
-  ].join('\n');
+    const csvData = data.map((offre: any) => ({
+      'ID': offre.id?.toString() || '',
+      'Titre': offre.titre || '',
+      'Entreprise': offre.entreprise?.nom_entreprise || '',
+      'Type Offre': offre.type_offre || '',
+      'Type Contrat': offre.type_contrat || '',
+      'Localisation': offre.localisation || '',
+      'Salaire': offre.salaire?.toString() || '0',
+      'Expérience': offre.experience || '',
+      'Date Publication': offre.date_publication ? new Date(offre.date_publication).toLocaleDateString('fr-FR') : '',
+      'Date Expiration': offre.date_expiration ? new Date(offre.date_expiration).toLocaleDateString('fr-FR') : '',
+      'Statut': offre.statut || '',
+      'Créée le': offre.created_at ? new Date(offre.created_at).toLocaleDateString('fr-FR') : ''
+    }));
 
-    // Télécharger
+    const headers = Object.keys(csvData[0]);
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => headers.map(header => `"${row[header as keyof typeof row] || ''}"`).join(','))
+    ].join('\n');
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -855,7 +964,6 @@ private executeCSVExport(data: Offre[]): void {
 
     const doc = new jsPDF();
     
-    // Titre du document
     const title = this.selectedOffres?.length > 0 
       ? `Offres sélectionnées (${data.length})`
       : `Liste des offres (${data.length})`;
@@ -891,29 +999,25 @@ private executeCSVExport(data: Offre[]): void {
     this.showSuccessMessage(`${data.length} offre(s) exportée(s) en PDF`);
   }
 
-  // Helpers permissions (à coller dans la classe OffreComponent)
+  private get currentUserId(): number | undefined {
+    return this.authService.getCurrentUser()?.id;
+  }
 
-private get currentUserId(): number | undefined {
-  return this.authService.getCurrentUser()?.id;
-}
+  setExpirationDays(days: number): void {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    this.offre.date_expiration = date;
+  }
 
-// Ajouter dans votre composant
-setExpirationDays(days: number): void {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  this.offre.date_expiration = date;
-}
+  saveAsDraft(): void {
+    this.offre.statut = 'brouillon';
+    this.saveOffre();
+  }
 
-// Méthode pour sauvegarder en brouillon
-saveAsDraft(): void {
-  this.offre.statut = 'brouillon';
-  this.saveOffre();
-}
-canEdit(_offre: Offre): boolean { return this.ALLOW_ALL; }
-canDelete(_offre: Offre): boolean { return this.ALLOW_ALL; }
-canSubmitValidation(_offre: Offre): boolean { return this.ALLOW_ALL; }
-canValidate(_offre: Offre): boolean { return this.ALLOW_ALL; }
-canPublish(_offre: Offre): boolean { return this.ALLOW_ALL; }
-canClose(_offre: Offre): boolean { return this.ALLOW_ALL; }
-
+  canEdit(_offre: Offre): boolean { return this.ALLOW_ALL; }
+  canDelete(_offre: Offre): boolean { return this.ALLOW_ALL; }
+  canSubmitValidation(_offre: Offre): boolean { return this.ALLOW_ALL; }
+  canValidate(_offre: Offre): boolean { return this.ALLOW_ALL; }
+  canPublish(_offre: Offre): boolean { return this.ALLOW_ALL; }
+  canClose(_offre: Offre): boolean { return this.ALLOW_ALL; }
 }

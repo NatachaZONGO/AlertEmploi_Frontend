@@ -26,6 +26,7 @@ import { Pays } from '../pays/pays.model';
 import { imageUrl } from '../../../Share/const';
 import { PaysDropdownComponent } from '../../../Share/pays-utils/pays-dropdown.component';
 import { PaysUtilsService } from '../../../Share/pays-utils/pays-utils.service';
+import { AuthService } from '../../auth/auth.service';
 
 interface StatCard {
   title: string;
@@ -67,16 +68,14 @@ export class MonEntrepriseComponent implements OnInit, OnDestroy {
   loading = false;
   editDialog = false;
   submitted = false;
-
+  isCommunityManager = false;
+  entrepriseSelectionnee: Entreprise | null = null;
   // Données du formulaire d'édition
   editForm: Partial<Entreprise> = {};
-
   // Statistiques
   stats: StatCard[] = [];
-
   // Liste des pays
   paysList: Pays[] = []; 
-
   // Options pour les dropdowns
   secteursActivite = [
     'Primaire', 
@@ -98,10 +97,25 @@ export class MonEntrepriseComponent implements OnInit, OnDestroy {
     private monEntrepriseService: MonEntrepriseService,
     private entrepriseService: EntrepriseService,
     public paysUtils: PaysUtilsService, 
-    private messageService: MessageService
+    private messageService: MessageService,
+    private authService: AuthService,
   ) {}
 
   ngOnInit(): void {
+    // ✅ Détecter le rôle
+    this.isCommunityManager = this.authService.hasRole('community_manager');
+    console.log('🎯 Est CM:', this.isCommunityManager);
+
+    // ✅ Si CM, écouter les changements d'entreprise sélectionnée
+    if (this.isCommunityManager) {
+      this.entrepriseService.selectedEntrepriseId$.pipe(
+        takeUntil(this.destroy$)
+      ).subscribe(id => {
+        console.log('🔄 Entreprise sélectionnée changée:', id);
+        this.loadInitialData();
+      });
+    }
+
     this.loadInitialData();
   }
 
@@ -113,9 +127,28 @@ export class MonEntrepriseComponent implements OnInit, OnDestroy {
   loadInitialData(): void {
     this.loading = true;
     
+    // ✅ Déterminer quelle entreprise charger
+    const entrepriseId = this.isCommunityManager 
+      ? this.entrepriseService.getSelectedEntrepriseId()
+      : null;
+
+    console.log('📋 Chargement données:', {
+      isCM: this.isCommunityManager,
+      entrepriseId: entrepriseId
+    });
+
+    // ✅ Requêtes adaptées au rôle
+    const entreprise$ = this.isCommunityManager && entrepriseId
+      ? this.monEntrepriseService.getEntrepriseById(entrepriseId)
+      : this.monEntrepriseService.getMonEntreprise();
+
+    const stats$ = this.isCommunityManager && entrepriseId
+      ? this.monEntrepriseService.getStatistiquesEntreprise(entrepriseId)
+      : this.monEntrepriseService.getStatistiques();
+
     forkJoin({
-      entreprise: this.monEntrepriseService.getMonEntreprise(),
-      stats: this.monEntrepriseService.getStatistiques(),
+      entreprise: entreprise$,
+      stats: stats$,
       pays: this.entrepriseService.getPays()
     })
     .pipe(
@@ -124,6 +157,16 @@ export class MonEntrepriseComponent implements OnInit, OnDestroy {
     )
     .subscribe({
       next: ({ entreprise, stats, pays }) => {
+        // Normaliser le pays_id
+        if (entreprise) {
+          const paysData = entreprise.pays;
+          if (paysData && typeof paysData === 'object' && 'id' in paysData) {
+            (entreprise as any).pays_id = paysData.id;
+          } else if (typeof paysData === 'number') {
+            (entreprise as any).pays_id = paysData;
+          }
+        }
+        
         this.entreprise = entreprise;
         console.log('✅ Entreprise chargée:', entreprise);
         
@@ -134,7 +177,7 @@ export class MonEntrepriseComponent implements OnInit, OnDestroy {
             icon: 'pi pi-briefcase',
             color: '#3b82f6',
             bgColor: '#eff6ff',
-            route: '/gestion/offres'
+            route: '/admin/gestion/offres'
           },
           {
             title: 'Offres actives',
@@ -149,7 +192,7 @@ export class MonEntrepriseComponent implements OnInit, OnDestroy {
             icon: 'pi pi-megaphone',
             color: '#f59e0b',
             bgColor: '#fffbeb',
-            route: '/gestion/publicites'
+            route: '/admin/gestion/publicites'
           },
           {
             title: 'Candidatures',
@@ -159,23 +202,50 @@ export class MonEntrepriseComponent implements OnInit, OnDestroy {
             bgColor: '#f5f3ff'
           }
         ];
-        console.log('✅ Statistiques chargées:', stats);
         
         this.paysList = pays;
-        console.log('✅ Pays chargés:', pays.length, 'pays');
       },
       error: (err) => {
         console.error('❌ Erreur chargement données:', err);
-        this.showError('Impossible de charger les données');
+        
+        // ✅ Message adapté pour CM sans entreprise sélectionnée
+        if (this.isCommunityManager && !this.entrepriseService.getSelectedEntrepriseId()) {
+          this.showError('Veuillez sélectionner une entreprise à gérer');
+        } else {
+          this.showError('Impossible de charger les données');
+        }
       }
     });
   }
 
   openEditDialog(): void {
-    this.editForm = { ...this.entreprise };
-    this.submitted = false;
-    this.editDialog = true;
+  // Copier toutes les données de l'entreprise
+  this.editForm = { ...this.entreprise };
+  
+  // ✅ S'assurer que pays_id est bien défini
+  if (this.entreprise) {
+    const paysData = this.entreprise.pays;
+    
+    // Si pays est un objet avec id
+    if (paysData && typeof paysData === 'object' && 'id' in paysData) {
+      this.editForm.pays_id = paysData.id;
+    }
+    // Si pays est déjà un nombre
+    else if (typeof paysData === 'number') {
+      this.editForm.pays_id = paysData;
+    }
+    // Si pays_id est déjà défini dans entreprise
+    else if ((this.entreprise as any).pays_id) {
+      this.editForm.pays_id = (this.entreprise as any).pays_id;
+    }
   }
+  
+  console.log('📝 Formulaire d\'édition ouvert:', this.editForm);
+  console.log('  - pays_id:', this.editForm.pays_id);
+  
+  this.submitted = false;
+  this.editDialog = true;
+}
 
   hideEditDialog(): void {
     this.editDialog = false;
@@ -216,57 +286,70 @@ export class MonEntrepriseComponent implements OnInit, OnDestroy {
   }
 
   onLogoSelected(event: Event): void {
-    const file = (event.target as HTMLInputElement).files?.[0];
-    if (!file) return;
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  
+  console.log('📁 Fichier sélectionné:', file);
+  
+  if (!file) {
+    console.warn('⚠️ Aucun fichier sélectionné');
+    return;
+  }
 
-    if (!file.type.startsWith('image/')) {
-      this.showWarn('Veuillez sélectionner une image');
-      return;
-    }
+  // Vérification du type
+  if (!file.type.startsWith('image/')) {
+    console.error('❌ Type de fichier incorrect:', file.type);
+    this.showWarn('Veuillez sélectionner une image (JPG, PNG, GIF...)');
+    return;
+  }
 
-    if (file.size > 2 * 1024 * 1024) {
-      this.showWarn('L\'image ne doit pas dépasser 2 MB');
-      return;
-    }
+  // Vérification de la taille (2 MB max)
+  const maxSize = 2 * 1024 * 1024; // 2 MB
+  if (file.size > maxSize) {
+    console.error('❌ Fichier trop volumineux:', file.size, 'bytes');
+    this.showWarn(`L'image ne doit pas dépasser 2 MB (taille actuelle: ${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    return;
+  }
 
-    this.loading = true;
-    this.monEntrepriseService.uploadLogo(file)
-      .pipe(
-        takeUntil(this.destroy$),
-        finalize(() => this.loading = false)
-      )
-      .subscribe({
-        next: (res) => {
-          this.showSuccess('Logo mis à jour avec succès');
-          this.loadInitialData();
-        },
-        error: (err) => {
-          console.error('❌ Erreur upload logo:', err);
-          this.showError('Erreur lors de l\'upload du logo');
+  console.log('✅ Fichier valide, envoi en cours...');
+  this.loading = true;
+  
+  this.monEntrepriseService.uploadLogo(file)
+    .pipe(
+      takeUntil(this.destroy$),
+      finalize(() => {
+        this.loading = false;
+        // Réinitialiser l'input pour permettre de réuploader la même image
+        input.value = '';
+      })
+    )
+    .subscribe({
+      next: (res) => {
+        console.log('✅ Logo uploadé avec succès:', res);
+        this.showSuccess('Logo mis à jour avec succès');
+        // Recharger les données
+        this.loadInitialData();
+      },
+      error: (err) => {
+        console.error('❌ Erreur upload logo:', err);
+        console.error('  Status:', err.status);
+        console.error('  Message:', err.error?.message || err.message);
+        console.error('  Errors:', err.error?.errors);
+        
+        // Message d'erreur détaillé
+        let errorMessage = 'Erreur lors de l\'upload du logo';
+        if (err.error?.message) {
+          errorMessage += ': ' + err.error.message;
         }
-      });
-  }
+        if (err.error?.errors?.logo) {
+          errorMessage += ' - ' + err.error.errors.logo.join(', ');
+        }
+        
+        this.showError(errorMessage);
+      }
+    });
+}
 
-  getLogoUrl(): string {
-    if (this.entreprise?.logo) {
-      if (this.entreprise.logo.startsWith('http')) {
-        return this.entreprise.logo;
-      }
-      if (this.entreprise.logo.startsWith('logos/')) {
-        return imageUrl + this.entreprise.logo;
-      }
-      if (this.entreprise.logo.startsWith('/storage/')) {
-        return 'http://127.0.0.1:8000' + this.entreprise.logo;
-      }
-      return imageUrl + this.entreprise.logo;
-    }
-    return 'assets/default-company.png';
-  }
-
-  onImageError(event: Event): void {
-    const imgElement = event.target as HTMLImageElement;
-    imgElement.src = 'assets/default-company.png';
-  }
 
   private showSuccess(detail: string): void {
     this.messageService.add({ 
@@ -294,4 +377,75 @@ export class MonEntrepriseComponent implements OnInit, OnDestroy {
       life: 4000 
     });
   }
+
+    getPaysDisplay(): string {
+    if (!this.entreprise?.pays) {
+      return 'Non renseigné';
+    }
+
+    const pays = this.entreprise.pays;
+
+    // Cas 1 : pays est un objet avec nom
+    if (typeof pays === 'object' && pays !== null) {
+      if ('nom' in pays && pays.nom) {
+        return pays.nom;
+      }
+      // Si objet mais pas de nom, chercher par ID
+      if ('id' in pays && pays.id) {
+        return this.findPaysNomById(pays.id);
+      }
+    }
+
+    // Cas 2 : pays est un nombre (ID)
+    if (typeof pays === 'number') {
+      return this.findPaysNomById(pays);
+    }
+
+    // Cas 3 : pays est une string
+    if (typeof pays === 'string') {
+      return pays;
+    }
+
+    return 'Non renseigné';
+  }
+
+/**
+ * Trouve le nom d'un pays par son ID dans la liste
+ */
+  private findPaysNomById(paysId: number): string {
+    const pays = this.paysList.find(p => p.id === paysId);
+    return pays?.nom || `Pays ID: ${paysId}`;
+  }
+/**
+ * Retourne l'URL du logo avec fallback
+ */
+getLogoUrl(): string {
+  if (this.entreprise?.logo) {
+    // Si le logo commence par http/https
+    if (this.entreprise.logo.startsWith('http')) {
+      return this.entreprise.logo;
+    }
+    // Si le logo commence par logos/
+    if (this.entreprise.logo.startsWith('logos/')) {
+      return imageUrl + this.entreprise.logo;
+    }
+    // Si le logo commence par /storage/
+    if (this.entreprise.logo.startsWith('/storage/')) {
+      return 'http://127.0.0.1:8000' + this.entreprise.logo;
+    }
+    // Sinon, ajouter imageUrl
+    return imageUrl + this.entreprise.logo;
+  }
+  // ✅ Placeholder avec le nom de l'entreprise
+  const name = this.entreprise?.nom_entreprise || 'Entreprise';
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&size=200&background=3b82f6&color=fff&bold=true`;
+}
+/**
+ * Gestion de l'erreur de chargement d'image
+ */
+onImageError(event: Event): void {
+  const imgElement = event.target as HTMLImageElement;
+  const name = this.entreprise?.nom_entreprise || 'Entreprise';
+  imgElement.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&size=200&background=6366f1&color=fff&bold=true`;
+}
 }

@@ -1,4 +1,3 @@
-// mon-entreprise.service.ts
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
@@ -35,7 +34,32 @@ export class MonEntrepriseService {
     });
   }
 
-  // Récupérer les informations de mon entreprise
+  /**
+   * ✅ NOUVEAU : Récupérer une entreprise spécifique (pour CM)
+   */
+  getEntrepriseById(id: number): Observable<Entreprise> {
+    console.log('📡 Appel getEntrepriseById:', id);
+    return this.http.get<any>(`${BackendURL}entreprises/${id}`, { headers: this.getHeaders() }).pipe(
+      map(res => {
+        console.log('📦 Réponse getEntrepriseById:', res);
+        return res?.data || res;
+      })
+    );
+  }
+  /**
+   * ✅ NOUVEAU : Récupérer les stats d'une entreprise spécifique (pour CM)
+   */
+  getStatistiquesEntreprise(entrepriseId: number): Observable<EntrepriseStats> {
+    console.log('📡 Appel getStatistiquesEntreprise:', entrepriseId);
+    return this.http.get<any>(`${BackendURL}entreprises/${entrepriseId}/stats`, { headers: this.getHeaders() }).pipe(
+      map(res => {
+        console.log('📦 Réponse stats entreprise:', res);
+        return res?.data || res;
+      })
+    );
+  }
+
+  // Récupérer les informations de mon entreprise (recruteur)
   getMonEntreprise(): Observable<Entreprise> {
     console.log('📡 Appel getMonEntreprise()');
     return this.http.get<any>(this.apiUrl, { headers: this.getHeaders() }).pipe(
@@ -46,7 +70,7 @@ export class MonEntrepriseService {
     );
   }
 
-  // Récupérer les statistiques de mon entreprise
+  // Récupérer les statistiques de mon entreprise (recruteur)
   getStatistiques(): Observable<EntrepriseStats> {
     console.log('📡 Appel getStatistiques()');
     return this.http.get<any>(`${this.apiUrl}/stats`, { headers: this.getHeaders() }).pipe(
@@ -57,23 +81,29 @@ export class MonEntrepriseService {
     );
   }
 
-  // Mettre à jour mon entreprise
   updateMonEntreprise(data: Partial<Entreprise>): Observable<Entreprise> {
+    console.log('📡 Appel updateMonEntreprise()');
     return this.http.put<any>(this.apiUrl, data, { headers: this.getHeaders() }).pipe(
-      map(res => res?.data || res)
+      map(res => {
+        console.log('📦 Réponse update:', res);
+        return res?.data || res;
+      })
     );
   }
 
-  // Upload logo
   uploadLogo(file: File): Observable<any> {
+    console.log('📤 Upload logo - Démarrage');
     const formData = new FormData();
     formData.append('logo', file);
-    
-    const token = this.authService.getToken();
-    const headers = new HttpHeaders({
-      'Authorization': token ? `Bearer ${token}` : ''
-    });
-    
-    return this.http.post(`${this.apiUrl}/logo`, formData, { headers });
+
+    const url = `${this.apiUrl}/logo`;
+    console.log('📡 Envoi vers:', url);
+
+    return this.http.post(url, formData).pipe(
+      map((res: any) => {
+        console.log('✅ Réponse upload logo:', res);
+        return res?.data || res;
+      })
+    );
   }
 }

@@ -17,14 +17,15 @@ import { ConfirmPopupModule } from 'primeng/confirmpopup';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { PasswordModule } from 'primeng/password';
 import { CheckboxModule } from 'primeng/checkbox';
+import { Divider } from "primeng/divider";
+import { ProgressSpinnerModule } from 'primeng/progressspinner';
+import { ProgressBarModule } from "primeng/progressbar";
 
 import { AuthService } from '../../auth/auth.service';
 import { UserService } from '../user/user.service';
 import { User } from '../user/user.model';
-import { Divider } from "primeng/divider";
-import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { imageUrl } from '../../../Share/const';
-import { ProgressBar, ProgressBarModule } from "primeng/progressbar";
+
 @Component({
   selector: 'app-profil',
   standalone: true,
@@ -43,11 +44,9 @@ import { ProgressBar, ProgressBarModule } from "primeng/progressbar";
     PasswordModule,
     CheckboxModule,
     Divider,
-    ConfirmPopupModule,
     ProgressSpinnerModule,
     ProgressBarModule
-  
-]
+  ]
 })
 export class ProfilComponent implements OnInit {
   user: User | null = null;
@@ -58,7 +57,10 @@ export class ProfilComponent implements OnInit {
   showFormulaire = signal(false);
   changePassword = signal(false);
 
-  // ---- FormGroup typé
+  // ✅ NOUVEAU : Fichier photo sélectionné
+  selectedPhotoFile: File | null = null;
+  photoPreviewUrl: string | null = null;
+
   userForm!: FormGroup<{
     id: FormControl<number | null>;
     nom: FormControl<string>;
@@ -71,7 +73,7 @@ export class ProfilComponent implements OnInit {
   }>;
 
   constructor(
-    private auth: AuthService,
+    private authService: AuthService,
     private userService: UserService,
     private messages: MessageService,
     private confirmationService: ConfirmationService
@@ -83,14 +85,10 @@ export class ProfilComponent implements OnInit {
     this.loadUserProfile();
   }
 
-  // Getter pratique pour le template
   get f() {
     return this.userForm.controls;
   }
 
-  /**
-   * Initialise le formulaire (utilisé pour l’édition)
-   */
   private initForm(): void {
     this.userForm = new FormGroup(
       {
@@ -107,94 +105,219 @@ export class ProfilComponent implements OnInit {
     );
   }
 
-  /**
-   * Charge le profil via /api/me (token dans l’intercepteur)
-   * Ton backend renvoie :
-   * {
-   *   success: true,
-   *   data: {
-   *     user: {..., roles: [...]},
-   *     roles: ["candidat", ...]
-   *   }
-   * }
-   */
-  
+  loadUserProfile(): void {
+    console.log('📡 Chargement du profil...');
+    this.userService.getProfile().subscribe({
+      next: (user) => {
+        console.log('✅ Profil chargé:', user);
+        this.user = user;
+        if (this.user) {
+          this.userForm.patchValue({
+            id: this.user.id ?? null,
+            nom: this.user.nom,
+            prenom: this.user.prenom,
+            email: this.user.email,
+            telephone: this.user.telephone
+          });
+          this.loadUserRoles();
+        }
+      },
+      error: (err) => {
+        console.error('❌ Erreur profil:', err);
+        this.messages.add({ 
+          severity: 'error', 
+          summary: 'Erreur', 
+          detail: 'Impossible de charger le profil' 
+        });
+      }
+    });
+  }
 
-  /**
-   * Ouvre le dialog et pré-remplit avec les données courantes
-   */
+  loadUserRoles(): void {
+    if (this.user?.roles) {
+      this.roles = Array.isArray(this.user.roles) ? this.user.roles : [this.user.roles];
+    } else if (this.user?.role) {
+      this.roles = [{ nom: this.user.role }];
+    }
+  }
+
   openDialog(user: User): void {
     this.userForm.reset({
       id: user.id ?? null,
       nom: user.nom ?? '',
       prenom: user.prenom ?? '',
       email: user.email ?? '',
-      telephone: (user as any).telephone ?? '',
+      telephone: user.telephone ?? '',
       currentPassword: '',
       password: '',
       confirmPassword: ''
     });
     this.onToggleChangePassword(false);
+    
+    // Réinitialiser la photo sélectionnée
+    this.selectedPhotoFile = null;
+    this.photoPreviewUrl = null;
+    
     this.showFormulaire.set(true);
   }
 
+  // ===== GESTION DE LA PHOTO =====
+
   /**
-   * Sauvegarde (mise à jour) du profil utilisateur
+   * ✅ Gérer le changement de fichier (upload photo)
    */
-  async save(): Promise<void> {
-    if (this.userForm.invalid) {
-      Object.values(this.userForm.controls).forEach((c) => c.markAsTouched());
+  onFileChange(event: any): void {
+    const file = event.target.files?.[0];
+    
+    console.log('📁 Fichier sélectionné:', file);
+    
+    if (!file) {
+      console.warn('⚠️ Aucun fichier sélectionné');
       return;
     }
 
-    const data = this.userForm.getRawValue(); // valeurs typées
+    // Vérifier le type de fichier
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      console.error('❌ Type de fichier invalide:', file.type);
+      this.messages.add({
+        severity: 'error',
+        summary: 'Format invalide',
+        detail: 'Utilisez JPG, PNG ou GIF.'
+      });
+      return;
+    }
 
-    // Si l’un des MDPS est renseigné, on vérifie la cohérence
-    if ((data.password?.length || 0) > 0 || (data.confirmPassword?.length || 0) > 0) {
+    // Vérifier la taille (5MB max)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      console.error('❌ Fichier trop volumineux:', file.size);
+      this.messages.add({
+        severity: 'error',
+        summary: 'Fichier trop volumineux',
+        detail: `Maximum 5MB. Taille actuelle: ${(file.size / 1024 / 1024).toFixed(2)}MB`
+      });
+      return;
+    }
+
+    // ✅ Stocker le fichier pour l'upload
+    this.selectedPhotoFile = file;
+    
+    // ✅ Créer une preview
+    const reader = new FileReader();
+    reader.onload = (e: any) => {
+      this.photoPreviewUrl = e.target.result;
+      console.log('✅ Preview créée');
+    };
+    reader.readAsDataURL(file);
+
+    console.log('✅ Photo prête pour l\'upload');
+    this.messages.add({
+      severity: 'success',
+      summary: 'Photo sélectionnée',
+      detail: 'La photo sera uploadée lors de l\'enregistrement.'
+    });
+  }
+
+  /**
+   * ✅ Uploader la photo vers le backend
+   */
+  private async uploadPhoto(): Promise<boolean> {
+    if (!this.selectedPhotoFile) {
+      return true; // Pas de photo = succès (rien à faire)
+    }
+
+    console.log('📤 Upload de la photo...');
+    
+    try {
+      await this.userService.uploadProfilePhoto(this.selectedPhotoFile).toPromise();
+      console.log('✅ Photo uploadée avec succès');
+      return true;
+    } catch (err: any) {
+      console.error('❌ Erreur upload photo:', err);
+      const detail = err?.error?.message || 'Impossible d\'uploader la photo';
+      this.messages.add({ 
+        severity: 'error', 
+        summary: 'Erreur photo', 
+        detail 
+      });
+      return false;
+    }
+  }
+
+  // ===== SAUVEGARDE DU PROFIL =====
+
+  /**
+   * ✅ Sauvegarde complète (infos + photo + mot de passe)
+   */
+  async save(): Promise<void> {
+    console.log('💾 Sauvegarde du profil...');
+    
+    if (this.userForm.invalid) {
+      Object.values(this.userForm.controls).forEach((c) => c.markAsTouched());
+      this.messages.add({
+        severity: 'warn',
+        summary: 'Formulaire invalide',
+        detail: 'Veuillez corriger les erreurs.'
+      });
+      return;
+    }
+
+    const data = this.userForm.getRawValue();
+
+    // Validation mot de passe
+    if (this.changePassword()) {
+      if (!data.currentPassword) {
+        this.messages.add({ 
+          severity: 'warn', 
+          summary: 'Mot de passe actuel requis', 
+          detail: 'Saisissez votre mot de passe actuel.' 
+        });
+        return;
+      }
+      if (!data.password || data.password.length < 8) {
+        this.messages.add({ 
+          severity: 'warn', 
+          summary: 'Nouveau mot de passe invalide', 
+          detail: 'Minimum 8 caractères requis.' 
+        });
+        return;
+      }
       if (data.password !== data.confirmPassword) {
-        this.messages.add({
-          severity: 'warn',
-          summary: 'Mot de passe',
-          detail: 'Les mots de passe ne correspondent pas.',
-          life: 4000
+        this.messages.add({ 
+          severity: 'warn', 
+          summary: 'Mots de passe différents', 
+          detail: 'Les mots de passe ne correspondent pas.' 
         });
         return;
       }
     }
 
-    if (data.id == null) {
-      this.messages.add({
-        severity: 'error',
-        summary: 'Erreur',
-        detail: 'Identifiant utilisateur manquant.',
-        life: 4000
-      });
-      return;
-    }
-
     this.isLoading.set(true);
+    
     try {
+      // ✅ 1) Uploader la photo (si sélectionnée)
+      if (this.selectedPhotoFile) {
+        console.log('📤 Étape 1: Upload photo');
+        const photoSuccess = await this.uploadPhoto();
+        if (!photoSuccess) {
+          this.isLoading.set(false);
+          return; // Arrêter si l'upload photo échoue
+        }
+      }
+
+      // ✅ 2) Mettre à jour les informations du profil
+      console.log('📝 Étape 2: Mise à jour des infos');
       await this.userService.updateProfileDetails({
         nom: data.nom,
         prenom: data.prenom,
         email: data.email,
         telephone: data.telephone
-        // (photo en string possible si tu affiches un champ)
       }).toPromise();
 
-      // 2) si changement de mot de passe
+      // ✅ 3) Changer le mot de passe (si demandé)
       if (this.changePassword()) {
-        if (!data.currentPassword) {
-          this.messages.add({ severity: 'warn', summary: 'Mot de passe', detail: 'Mot de passe actuel requis.' });
-          this.isLoading.set(false);
-          return;
-        }
-        if (!data.password || data.password !== data.confirmPassword) {
-          this.messages.add({ severity: 'warn', summary: 'Mot de passe', detail: 'Les mots de passe ne correspondent pas.' });
-          this.isLoading.set(false);
-          return;
-        }
-
+        console.log('🔒 Étape 3: Changement de mot de passe');
         await this.userService.changePassword(
           data.currentPassword,
           data.password,
@@ -202,19 +325,31 @@ export class ProfilComponent implements OnInit {
         ).toPromise();
       }
 
-      // 3) recharger le profil (optionnel mais pratique)
-      await this.userService.getProfile().toPromise().then((u: User | undefined) => {
-          if (u) {
-            this.user = u;
-          }
-        });
+      // ✅ 4) Recharger le profil pour afficher les nouvelles données
+      console.log('🔄 Étape 4: Rechargement du profil');
+      const updatedUser = await this.userService.getProfile().toPromise();
+      if (updatedUser) {
+        this.user = updatedUser;
+      }
 
-      this.messages.add({ severity: 'success', summary: 'Profil', detail: 'Vos informations ont été mises à jour.' });
+      // ✅ 5) Message de succès
+      this.messages.add({ 
+        severity: 'success', 
+        summary: 'Profil mis à jour', 
+        detail: 'Vos modifications ont été enregistrées avec succès.' 
+      });
+
+      // ✅ 6) Fermer le dialog
       this.closeForm();
+
     } catch (err: any) {
-      console.error(err);
+      console.error('❌ Erreur lors de la sauvegarde:', err);
       const detail = err?.error?.message || 'Mise à jour impossible.';
-      this.messages.add({ severity: 'error', summary: 'Erreur', detail });
+      this.messages.add({ 
+        severity: 'error', 
+        summary: 'Erreur', 
+        detail 
+      });
     } finally {
       this.isLoading.set(false);
     }
@@ -222,24 +357,56 @@ export class ProfilComponent implements OnInit {
 
   closeForm(): void {
     this.userForm.reset();
+    this.selectedPhotoFile = null;
+    this.photoPreviewUrl = null;
     this.showFormulaire.set(false);
   }
 
-  // (Optionnel) si tu gardes un tableau users() pour ailleurs
-  private getUserIndexById(id: number): number {
-    return this.users().findIndex((u) => u.id == id);
+  // ===== GESTION DES IMAGES =====
+
+  /**
+   * ✅ Obtenir l'URL complète de l'image
+   */
+  getImageUrl(photoPath?: string | File): string {
+    // Si on a une preview (nouvelle photo)
+    if (this.photoPreviewUrl) {
+      return this.photoPreviewUrl;
+    }
+    
+    if (!photoPath) {
+      return '';
+    }
+    
+    // Si c'est un objet File (cas rare ici)
+    if (photoPath instanceof File) {
+      return URL.createObjectURL(photoPath);
+    }
+    
+    // Si c'est un chemin string
+    if (typeof photoPath === 'string') {
+      // URL complète
+      if (photoPath.startsWith('http')) {
+        return photoPath;
+      }
+      // Chemin relatif
+      return `${imageUrl}${photoPath}`;
+    }
+    
+    return '';
   }
 
-  // --- Validateur de correspondance des mots de passe (form-level)
-  private static passwordMatchValidator(group: AbstractControl): ValidationErrors | null {
-    const pass = group.get('password')?.value ?? '';
-    const confirm = group.get('confirmPassword')?.value ?? '';
-    if (!pass && !confirm) return null;
-    return pass === confirm ? null : { passwordMismatch: true };
+  /**
+   * ✅ Gérer les erreurs de chargement d'image
+   */
+  onImageError(event: any): void {
+    console.warn('⚠️ Erreur chargement image');
+    // Masquer l'image pour afficher le placeholder
+    event.target.style.display = 'none';
   }
 
-  // --- Toggle dynamique des validators pour les champs password
- onToggleChangePassword(checked: boolean): void {
+  // ===== GESTION DU MOT DE PASSE =====
+
+  onToggleChangePassword(checked: boolean): void {
     this.changePassword.set(checked);
     const cur = this.userForm.get('currentPassword');
     const pwd = this.userForm.get('password');
@@ -257,126 +424,23 @@ export class ProfilComponent implements OnInit {
       pwd?.setValue('');
       cfm?.setValue('');
     }
+    
     cur?.updateValueAndValidity();
     pwd?.updateValueAndValidity();
     cfm?.updateValueAndValidity();
     this.userForm.updateValueAndValidity();
   }
 
-
-  // Gestion d’erreur de chargement de l’image
-  /**
-   * Obtenir l'URL complète de l'image
-   */
-  getImageUrl(photoPath: string | File | undefined): string {
-    if (!photoPath) {
-      return '';
-    }
-    
-    // Si c'est un objet File (nouvelle image uploadée)
-    if (photoPath instanceof File) {
-      return URL.createObjectURL(photoPath);
-    }
-    
-    // Si c'est un chemin string
-    if (typeof photoPath === 'string') {
-      // Si l'URL est déjà complète
-      if (photoPath.startsWith('http')) {
-        return photoPath;
-      }
-      // Utiliser la constante imageUrl existante
-      return `${imageUrl}${photoPath}`;
-    }
-    
-    return '';
+  private static passwordMatchValidator(group: AbstractControl): ValidationErrors | null {
+    const pass = group.get('password')?.value ?? '';
+    const confirm = group.get('confirmPassword')?.value ?? '';
+    if (!pass && !confirm) return null;
+    return pass === confirm ? null : { passwordMismatch: true };
   }
 
-  /**
-   * Gérer les erreurs de chargement d'image
-   */
-  onImageError(event: any): void {
-    // Cacher l'image et le parent pourra afficher le placeholder
-    event.target.style.display = 'none';
-    // OU remplacer par une image par défaut si vous en avez une
-    // event.target.src = 'assets/images/default-avatar.png';
+  // ===== DÉCONNEXION =====
+
+  logout(): void {
+    this.authService.logout();
   }
-
-  /**
-   * Gérer le changement de fichier (upload photo)
-   */
-  onFileChange(event: any): void {
-    const file = event.target.files[0];
-    
-    if (file) {
-      // Vérifier le type de fichier
-      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-      if (!validTypes.includes(file.type)) {
-        this.messages.add({
-          severity: 'error',
-          summary: 'Erreur',
-          detail: 'Format de fichier non valide. Utilisez JPG, PNG ou GIF.'
-        });
-        return;
-      }
-
-      // Vérifier la taille (5MB max)
-      const maxSize = 5 * 1024 * 1024; // 5MB
-      if (file.size > maxSize) {
-        this.messages.add({
-          severity: 'error',
-          summary: 'Erreur',
-          detail: 'Le fichier est trop volumineux. Maximum 5MB.'
-        });
-        return;
-      }
-
-      // Stocker le fichier dans l'objet user
-      if (this.user) {
-        this.user.photo = file;
-      }
-
-      this.messages.add({
-        severity: 'success',
-        summary: 'Succès',
-        detail: 'Photo sélectionnée avec succès.'
-      });
-    }
-  }
-
-
-  loadUserProfile(): void {
-    this.userService.getProfile().subscribe({
-      next: (user) => {
-        this.user = user;
-        if (this.user) {
-          this.userForm.patchValue({
-            id: this.user.id ?? null,
-            nom: this.user.nom,
-            prenom: this.user.prenom,
-            email: this.user.email,
-            telephone: this.user.telephone
-          });
-          this.loadUserRoles();
-        }
-      },
-      error: (err) => {
-        console.error('Erreur profil:', err);
-        this.messages.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger le profil' });
-      }
-    });
-  }
-
-  /**
-   * Charger les rôles de l'utilisateur
-   */
-  loadUserRoles(): void {
-    // Si vous avez les rôles directement dans l'objet user
-    if (this.user?.roles) {
-      this.roles = Array.isArray(this.user.roles) ? this.user.roles : [this.user.roles];
-    } else if (this.user?.role) {
-      this.roles = [{ nom: this.user.role }];
-    }
-  }
-
-  
 }

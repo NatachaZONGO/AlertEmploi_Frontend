@@ -1,5 +1,23 @@
 <p-toast></p-toast>
-
+<div *ngIf="isCommunityManager && entreprise" class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-4 mb-4 rounded-lg shadow-lg">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <i class="pi pi-building text-2xl"></i>
+      <div>
+        <p class="text-sm opacity-90 m-0">Vous gérez actuellement</p>
+        <h3 class="text-xl font-bold m-0">{{ entreprise.nom_entreprise }}</h3>
+      </div>
+    </div>
+    <p-button 
+      label="Changer d'entreprise" 
+      icon="pi pi-sync"
+      severity="secondary"
+      [outlined]="true"
+      styleClass="text-white border-white"
+      routerLink="/admin/gestion/entreprises">
+    </p-button>
+  </div>
+</div>
 <div class="page-container">
   <!-- Header -->
   <div class="page-header">
@@ -170,14 +188,7 @@
             <div class="info-item">
               <span class="info-label">Pays</span>
               <span class="info-value">
-                <!-- Si pays est un objet avec la relation -->
-                <ng-container *ngIf="entreprise?.pays && typeof entreprise?.pays === 'object'; else simpleCountry">
-                  {{ entreprise?.pays?.nom || 'Non renseigné' }}
-                </ng-container>
-                <!-- Si pays est juste une string -->
-                <ng-template #simpleCountry>
-                  {{ entreprise?.pays || 'Non renseigné' }}
-                </ng-template>
+                {{ getPaysDisplay() }}
               </span>
             </div>
           </div>

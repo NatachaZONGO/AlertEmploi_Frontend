@@ -166,7 +166,8 @@
   [resizable]="false"
   [dismissableMask]="true"
   [style]="{ width: '900px', maxWidth: '95vw' }"
-  [breakpoints]="{ '960px': '95vw', '640px': '100vw' }"
+  [contentStyle]="{ 'max-height': '78vh', 'overflow-y': 'auto', 'overflow-x': 'hidden' }"
+  [breakpoints]="{ '1200px': '900px', '960px': '95vw', '640px': '100vw' }"
   styleClass="elegant-dialog"
   [header]="selectedOffre?.titre || 'Détail de l\'offre'">
 
@@ -209,7 +210,8 @@
           <i class="pi pi-file-edit"></i>
           Description du poste
         </h3>
-        <div class="offer-content-html" [innerHTML]="d.description || ''"></div>
+        <div class="offer-content-html" lang="fr" [innerHTML]="d.description || ''"></div>
+
       </div>
 
       <!-- Footer avec actions -->
@@ -920,11 +922,10 @@
   }
 
   .view-job-btn {
-    background-color: var(--primary-blue) !important;
-    border-color: var(--primary-blue) !important;
-    color: var(--white) !important;
-    font-size: 0.875rem !important;
-    padding: 0.5rem 1.25rem !important;
+    font-size: 0.75rem !important;
+    padding: 0.5rem 1rem !important;
+    background-color: #111d9d !important;
+    border-color: #111d9d !important;
     transition: all 0.3s ease !important;
   }
 
@@ -1520,4 +1521,204 @@
     border-color: #111d9d !important;
     box-shadow: 0 0 0 3px rgba(17, 29, 157, 0.08) !important;
   }
+
+  /* Empêche tout scroll horizontal dans le dialog */
+:host ::ng-deep .elegant-dialog .p-dialog-content {
+  overflow-x: hidden !important;
+}
+
+/* Le wrapper ne doit pas étirer la boîte */
+.offer-details-wrapper { min-width: 0; }
+
+/* Le contenu HTML injecté se re-plie correctement */
+.offer-content-html {
+  white-space: normal;         /* jamais de texte en une seule ligne */
+  overflow-wrap: anywhere;     /* casse les mots/URLs TRES longs */
+  word-break: break-word;      /* fallback pour anciens moteurs */
+  hyphens: auto;               /* césure élégante quand possible */
+  text-wrap: pretty;           /* moteurs modernes, rendus plus propres */
+}
+
+/* Liens et blocs code qui débordent parfois */
+.offer-content-html a { word-break: break-all; }
+.offer-content-html pre,
+.offer-content-html code,
+.offer-content-html kbd,
+.offer-content-html samp {
+  white-space: pre-wrap;       /* wrappe le code long */
+  word-break: break-word;
+}
+
+/* Éléments "largeur naturelle" (images, iframes, tables) */
+.offer-content-html img,
+.offer-content-html video,
+.offer-content-html iframe,
+.offer-content-html table {
+  max-width: 100% !important;
+  height: auto;
+}
+
+/* Tableaux : évite les dépassements et garde un rendu propre */
+.offer-content-html table {
+  display: block;              /* permet le wrap + scroll Y si besoin */
+  overflow-x: auto;            /* au cas où un tableau serait VRAIMENT large */
+  border-collapse: collapse;
+}
+.offer-content-html th,
+.offer-content-html td {
+  border: 1px solid #e2e8f0;
+  padding: .5rem .75rem;
+}
+
+/* Titre du dialog sur 1 seule ligne : tronqué proprement s'il est trop long */
+:host ::ng-deep .elegant-dialog .p-dialog-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: calc(100vw - 8rem); /* réserve de place pour l'icône de fermeture */
+}
+
+:host ::ng-deep .elegant-dialog .p-dialog-content {
+  max-height: 78vh;
+  overflow-y: auto;
+  overflow-x: hidden !important;      /* plus de scroll gauche↔droite */
+  padding-right: 1.25rem;             /* évite la mini barre horizontale */
+}
+
+/* Empêche le wrapper d'étirer le contenu (important pour le wrap) */
+.offer-details-wrapper { min-width: 0; }
+
+/* 2) Texte injecté : coupures propres (FR) sans casser les mots au milieu */
+.offer-content-html {
+  white-space: normal;                 /* jamais de ligne infinie */
+  overflow-wrap: break-word;           /* casse UNIQUEMENT si nécessaire */
+  word-break: normal;                  /* pas de cassure “agressive” */
+  hyphens: auto;                       /* césure naturelle (dépend de lang=fr) */
+  -webkit-hyphens: auto;
+  text-wrap: pretty;                   /* moteurs modernes : rendu plus doux */
+}
+
+/* 3) Cas particuliers : liens / tokens interminables / code */
+.offer-content-html a { word-break: break-all; }
+.offer-content-html pre,
+.offer-content-html code,
+.offer-content-html kbd,
+.offer-content-html samp {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 4) Médias & tableaux ne débordent jamais */
+.offer-content-html img,
+.offer-content-html video,
+.offer-content-html iframe,
+.offer-content-html table {
+  max-width: 100% !important;
+  height: auto;
+}
+
+.offer-content-html table {
+  display: block;                      /* permet le wrap + scroll Y si besoin */
+  overflow-x: auto;                    /* si un tableau est VRAIMENT large */
+  border-collapse: collapse;
+}
+.offer-content-html th,
+.offer-content-html td {
+  border: 1px solid #e2e8f0;
+  padding: .5rem .75rem;
+}
+
+/* 5) Titre du dialog : une seule ligne, ellipsis si trop long */
+:host ::ng-deep .elegant-dialog .p-dialog-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: calc(100vw - 8rem);       /* laisse de la place pour le bouton X */
+}
+
+/* 6) Marges typographiques (harmonisées) */
+.offer-content-html p { margin: .75rem 0; }
+.offer-content-html ul, .offer-content-html ol { margin: .75rem 0 .75rem 1.25rem; }
+.offer-content-html h1, .offer-content-html h2, .offer-content-html h3 {
+  margin: 1.25rem 0 .5rem;
+  line-height: 1.25;
+}
+/* ================== FIX DIALOG (DÉBORDEMENT & TEXTE COUPÉ) ================== */
+/* 1) Le dialog ne dépasse jamais le viewport */
+:host ::ng-deep .elegant-dialog {
+  width: min(900px, 95vw) !important;
+  max-width: 95vw !important;
+  box-sizing: border-box;
+}
+
+/* 2) Zone de contenu : scroll vertical OK, jamais de scroll horizontal */
+:host ::ng-deep .elegant-dialog .p-dialog-content {
+  max-height: 78vh !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding-right: 1.25rem;     /* évite la mini-barre horizontale */
+  box-sizing: border-box;
+}
+
+/* 3) Empêche tout léger débordement global pendant l'ouverture du dialog */
+html, body { overflow-x: hidden; }
+
+/* 4) Les conteneurs flex à l'intérieur ne doivent pas forcer la largeur */
+.offer-details-wrapper,
+.offer-company-section,
+.offer-description-wrapper { min-width: 0; }
+.offer-company-section > *,
+.offer-description-wrapper > * { min-width: 0; }
+
+/* 5) Règles de WRAP propres pour **tout** le HTML injecté */
+.offer-content-html,
+.offer-content-html * {
+  white-space: normal !important;     /* pas de ligne infinie */
+  overflow-wrap: break-word !important; /* casse au besoin (propre) */
+  word-break: normal !important;      /* évite les coupures agressives */
+  hyphens: auto !important;           /* césure FR si possible (lang="fr") */
+  -webkit-hyphens: auto !important;
+}
+
+/* 6) Liens/tokens très longs et <pre>/<code> qui débordent parfois */
+.offer-content-html a { word-break: break-all !important; }
+.offer-content-html pre,
+.offer-content-html code,
+.offer-content-html kbd,
+.offer-content-html samp {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+}
+
+/* 7) Médias & tableaux ne dépassent jamais la largeur utile */
+.offer-content-html img,
+.offer-content-html video,
+.offer-content-html iframe,
+.offer-content-html table {
+  max-width: 100% !important;
+  height: auto !important;
+}
+.offer-content-html table {
+  display: block !important;          /* autorise le wrap + scroll X interne si très large */
+  overflow-x: auto !important;
+  border-collapse: collapse;
+}
+.offer-content-html th,
+.offer-content-html td {
+  border: 1px solid #e2e8f0;
+  padding: .5rem .75rem;
+}
+
+/* 8) Titre du dialog : une seule ligne + ellipsis propre */
+:host ::ng-deep .elegant-dialog .p-dialog-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: calc(100vw - 8rem);
+}
+
 </style>
+<app-footer-widget></app-footer-widget>

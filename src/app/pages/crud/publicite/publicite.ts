@@ -21,7 +21,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Publicite } from './publicite.model';
 import { Entreprise } from '../entreprise/entreprise.model';
 import { EntrepriseService } from '../entreprise/entreprise.service';
-import { forkJoin } from 'rxjs';
+import { forkJoin, Observable, of } from 'rxjs';
 import { EditorModule } from 'primeng/editor';
 import { RadioButtonModule } from 'primeng/radiobutton';
 import { Tag, TagModule } from 'primeng/tag';
@@ -94,6 +94,8 @@ export class PubliciteComponent implements OnInit {
     isRecruteur: boolean = false;
     isAdmin: boolean = false;
     entrepriseRecruteur?: Entreprise;
+    isCommunityManager: boolean = false;
+    entrepriseCM?: Entreprise;
 
     activationDialog = false;
     publiciteDialog = false;
@@ -152,6 +154,9 @@ export class PubliciteComponent implements OnInit {
         this.loadData();
         this.initColumns();
         this.loadPricingAndPaymentOptions();
+        if (this.isCommunityManager) {
+        this.subscribeToEntrepriseChanges();
+    }
     }
 
     loadPricingAndPaymentOptions() {
@@ -173,13 +178,26 @@ export class PubliciteComponent implements OnInit {
   // Log pour déboguer
   console.log('🔍 Rôle de l\'utilisateur (publicités):', rawRole, '-> normalisé:', role);
   
-  // Sélectionner le bon endpoint selon le rôle
-  const publicites$ = 
-    role === 'recruteur'
-      ? this.publiciteService.getMesPublicites()
-      : this.publiciteService.getPublicites();
-
-  console.log('📡 Endpoint utilisé:', role === 'recruteur' ? 'mes-publicites' : 'publicites');
+  // ✅ Récupérer l'entreprise_id sélectionnée (pour CM)
+  const entrepriseId = this.entrepriseService.getSelectedEntrepriseId();
+  console.log('🏢 Entreprise sélectionnée:', entrepriseId);
+  
+  // ✅ Sélectionner le bon endpoint selon le rôle
+  let publicites$: Observable<any[]>;
+  
+  if (role === 'recruteur' || role === 'community_manager') {
+    // Recruteur ou CM : mes publicités (avec filtre entreprise pour CM)
+    publicites$ = this.publiciteService.getMesPublicites(entrepriseId !== null ? entrepriseId : undefined);
+    console.log('📡 Endpoint utilisé: mes-publicites' + (entrepriseId ? ` (entreprise ${entrepriseId})` : ''));
+  } else if (role === 'administrateur' || role === 'admin') {
+    // Admin : toutes les publicités
+    publicites$ = this.publiciteService.getPublicites();
+    console.log('📡 Endpoint utilisé: publicites (admin)');
+  } else {
+    // Rôle non reconnu
+    console.warn('⚠️ Rôle non reconnu, aucune publicité chargée');
+    publicites$ = of([]);
+  }
 
   forkJoin({
     entreprises: this.entrepriseService.getEntreprises({ page: 1, per_page: 1000 }),
@@ -199,6 +217,19 @@ export class PubliciteComponent implements OnInit {
       }));
       
       console.log('🎯 Publicités finales affichées:', this.publicites.length);
+      
+      // ✅ Message informatif pour le CM
+      if (role === 'community_manager' && entrepriseId) {
+        const entrepriseNom = this.entreprises.find(e => e.id === entrepriseId)?.nom_entreprise;
+        if (entrepriseNom) {
+          this.messageService.add({
+            severity: 'info',
+            summary: 'Entreprise sélectionnée',
+            detail: `Affichage des publicités de : ${entrepriseNom}`,
+            life: 3000
+          });
+        }
+      }
     },
     error: (err) => {
       console.error('❌ Erreur lors du chargement des données:', err);
@@ -230,60 +261,85 @@ export class PubliciteComponent implements OnInit {
 
     // === GESTION DES PUBLICITÉS (création/édition) ===
     
-    openNew() {
-        this.publicite = { 
-            media_request: 'image',
-            type: 'banniere',
-            duree: '7',
-            date_debut: new Date(),
-            imageFile: null, 
-            videoFile: null,
-            entreprise_id: undefined
-        };
+  openNew() {
+    this.publicite = { 
+        media_request: 'image',
+        type: 'banniere',
+        imageFile: null, 
+        videoFile: null,
+        entreprise_id: undefined,
+        titre: '', // ✅ AJOUTÉ
+        description: '', // ✅ AJOUTÉ
+        lien_externe: '' // ✅ AJOUTÉ
+    };
 
-        // ✅ AUTO-REMPLISSAGE pour recruteur
-        if (this.isRecruteur && this.entrepriseRecruteur) {
-            this.publicite.entreprise_id = this.entrepriseRecruteur.id;
-            this.publicite.entreprise = this.entrepriseRecruteur.id;
-            console.log('✅ Entreprise pré-remplie automatiquement:', this.entrepriseRecruteur.nom_entreprise);
-        }
-
-        this.previewImage = undefined;
-        this.previewVideo = undefined;
-        this.submitted = false;
-        this.publiciteDialog = true;
+    // ✅ AUTO-REMPLISSAGE pour recruteur
+    if (this.isRecruteur && this.entrepriseRecruteur) {
+        this.publicite.entreprise_id = this.entrepriseRecruteur.id;
+        this.publicite.entreprise = this.entrepriseRecruteur.id;
+        console.log('✅ Entreprise recruteur pré-remplie:', this.entrepriseRecruteur.nom_entreprise);
+    }
+    
+    // ✅ AUTO-REMPLISSAGE pour CM
+    if (this.isCommunityManager && this.entrepriseCM) {
+        this.publicite.entreprise_id = this.entrepriseCM.id;
+        this.publicite.entreprise = this.entrepriseCM.id;
+        console.log('✅ Entreprise CM pré-remplie:', this.entrepriseCM.nom_entreprise);
+    }
+    
+    // ✅ Si ni recruteur ni CM avec entreprise : avertir
+    if (!this.publicite.entreprise_id) {
+        console.warn('⚠️ Aucune entreprise pré-remplie');
     }
 
+    this.previewImage = undefined;
+    this.previewVideo = undefined;
+    this.submitted = false;
+    this.publiciteDialog = true;
+    
+    // ✅ AJOUTÉ : Log pour vérifier l'état initial
+    console.log('🆕 Dialog ouvert, publicite initiale:', this.publicite);
+}
 
     private requireCreationFields(): string | null {
-        const p = this.publicite;
-        
-        if (!p.titre) return 'Le titre est requis.';
-        
-        // ✅ Vérification stricte de l'entreprise
-        if (!p.entreprise_id) {
-            if (this.isRecruteur && this.entrepriseRecruteur) {
-                // Fallback : assigner automatiquement
-                p.entreprise_id = this.entrepriseRecruteur.id;
-            } else {
-                return "L'entreprise est requise.";
-            }
+    const p = this.publicite;
+    
+    if (!p.titre) return 'Le titre est requis.';
+    
+    // ✅ Vérification entreprise avec fallback pour CM
+    if (!p.entreprise_id) {
+        // Fallback recruteur
+        if (this.isRecruteur && this.entrepriseRecruteur) {
+            p.entreprise_id = this.entrepriseRecruteur.id;
+            console.log('✅ Entreprise recruteur assignée automatiquement');
         }
-        
-        if (!p.media_request) return 'Le type de média est requis.';
-        if (!p.duree) return 'La durée est requise.';
-        if (!p.date_debut) return 'La date de début est requise.';
-
-        const mr = p.media_request;
-        if ((mr === 'image' || mr === 'both') && !(p.image || p.imageFile)) {
-            return 'Une image est requise.';
+        // Fallback CM
+        else if (this.isCommunityManager && this.entrepriseCM) {
+            p.entreprise_id = this.entrepriseCM.id;
+            console.log('✅ Entreprise CM assignée automatiquement');
         }
-        if ((mr === 'video' || mr === 'both') && !(p.video || p.videoFile)) {
-            return 'Une vidéo est requise.';
+        // Sinon : erreur
+        else {
+            return "L'entreprise est requise. Veuillez d'abord sélectionner une entreprise à gérer.";
         }
-        
-        return null;
     }
+    
+    if (!p.media_request) return 'Le type de média est requis.';
+    
+    // ❌ ENLEVER CES LIGNES (duree et date_debut sont maintenant optionnels)
+    // if (!p.duree) return 'La durée est requise.';
+    // if (!p.date_debut) return 'La date de début est requise.';
+
+    const mr = p.media_request;
+    if ((mr === 'image' || mr === 'both') && !(p.image || p.imageFile)) {
+        return 'Une image est requise.';
+    }
+    if ((mr === 'video' || mr === 'both') && !(p.video || p.videoFile)) {
+        return 'Une vidéo est requise.';
+    }
+    
+    return null;
+}
 
 
     editPublicite(pub: Publicite) {
@@ -410,13 +466,29 @@ export class PubliciteComponent implements OnInit {
 savePublicite() {
   this.submitted = true;
 
+  // ✅ AJOUTÉ : Logs de débogage
+  console.log('=== SAUVEGARDE PUBLICITE ===');
+  console.log('📦 Données this.publicite:', this.publicite);
+  console.log('  - titre:', this.publicite.titre);
+  console.log('  - media_request:', this.publicite.media_request);
+  console.log('  - entreprise_id:', this.publicite.entreprise_id);
+  console.log('  - type:', this.publicite.type);
+  console.log('  - lien_externe:', this.publicite.lien_externe);
+  console.log('  - imageFile:', this.publicite.imageFile);
+  console.log('  - videoFile:', this.publicite.videoFile);
+  console.log('  - image (URL):', this.publicite.image);
+  console.log('  - video (URL):', this.publicite.video);
+
   const error = this.requireCreationFields();
   if (error) {
+    console.error('❌ Validation échouée:', error);
     this.messageService.add({ severity: 'error', summary: 'Erreur', detail: error });
     return;
   }
 
   const useMultipart = !!(this.publicite.imageFile || this.publicite.videoFile);
+  console.log('📤 Mode d\'envoi:', useMultipart ? 'FormData (multipart)' : 'JSON');
+  
   let payload: any | FormData;
 
   if (useMultipart) {
@@ -427,11 +499,15 @@ savePublicite() {
     fd.append('type', this.publicite.type ?? 'banniere');
     fd.append('media_request', this.publicite.media_request!);
     fd.append('entreprise_id', String(this.publicite.entreprise_id));
-    fd.append('duree', String(this.publicite.duree));
-    const ymd = this.publicite.date_debut instanceof Date
-      ? this.publicite.date_debut.toISOString().slice(0,10)
-      : (this.publicite.date_debut as string);
-    fd.append('date_debut', ymd);
+    
+    // ✅ duree et date_debut sont maintenant optionnels
+    if (this.publicite.duree) fd.append('duree', String(this.publicite.duree));
+    if (this.publicite.date_debut) {
+      const ymd = this.publicite.date_debut instanceof Date
+        ? this.publicite.date_debut.toISOString().slice(0,10)
+        : (this.publicite.date_debut as string);
+      fd.append('date_debut', ymd);
+    }
 
     if (this.publicite.imageFile) fd.append('image', this.publicite.imageFile);
     else if (this.publicite.image) fd.append('image', this.publicite.image);
@@ -439,6 +515,12 @@ savePublicite() {
     else if (this.publicite.video) fd.append('video', this.publicite.video);
 
     payload = fd;
+    
+    // ✅ AJOUTÉ : Log FormData
+    console.log('📦 FormData créé (contenu):');
+    fd.forEach((value, key) => {
+      console.log(`  - ${key}:`, value);
+    });
   } else {
     payload = {
       titre: this.publicite.titre,
@@ -447,21 +529,28 @@ savePublicite() {
       type: this.publicite.type ?? 'banniere',
       media_request: this.publicite.media_request,
       entreprise_id: this.publicite.entreprise_id,
-      duree: this.publicite.duree,
-      date_debut: this.publicite.date_debut instanceof Date
-        ? this.publicite.date_debut.toISOString().slice(0,10)
-        : this.publicite.date_debut,
+      ...(this.publicite.duree ? { duree: this.publicite.duree } : {}),
+      ...(this.publicite.date_debut ? { 
+        date_debut: this.publicite.date_debut instanceof Date
+          ? this.publicite.date_debut.toISOString().slice(0,10)
+          : this.publicite.date_debut 
+      } : {}),
       ...(this.publicite.image ? { image: this.publicite.image } : {}),
       ...(this.publicite.video ? { video: this.publicite.video } : {}),
     };
+    
+    console.log('📦 Payload JSON:', payload);
   }
 
   const req = this.publicite.id
     ? this.publiciteService.updatePublicite(this.publicite.id!, payload)
     : this.publiciteService.createPublicite(payload);
 
+  console.log('📡 Envoi de la requête...');
+
   req.subscribe({
-    next: () => {
+    next: (response) => {
+      console.log('✅ Réponse reçue:', response);
       this.messageService.add({
         severity: 'success',
         summary: 'Succès',
@@ -472,6 +561,8 @@ savePublicite() {
       this.publicite = { media_request: 'image' };
     },
     error: (err: HttpErrorResponse) => {
+      console.error('❌ Erreur serveur:', err);
+      console.error('Détails:', err.error);
       this.messageService.add({
         severity: 'error',
         summary: 'Erreur',
@@ -691,22 +782,29 @@ savePublicite() {
     this.selectedPubliciteForDetails = undefined;
     }
 
-    private detectUserRole(): void {
-        const rawRole = this.authService.getUserRole();
-        this.userRole = rawRole?.toLowerCase()?.trim() || '';
-        this.isRecruteur = this.userRole === 'recruteur';
-        this.isAdmin = this.userRole === 'administrateur' || this.userRole === 'admin';
-        
-        console.log('🔍 Rôle détecté:', this.userRole, {
-            isRecruteur: this.isRecruteur,
-            isAdmin: this.isAdmin
-        });
+   private detectUserRole(): void {
+    const rawRole = this.authService.getUserRole();
+    this.userRole = rawRole?.toLowerCase()?.trim() || '';
+    this.isRecruteur = this.userRole === 'recruteur';
+    this.isAdmin = this.userRole === 'administrateur' || this.userRole === 'admin';
+    this.isCommunityManager = this.userRole === 'community_manager'; // ✅ AJOUTÉ
+    
+    console.log('🔍 Rôle détecté:', this.userRole, {
+        isRecruteur: this.isRecruteur,
+        isAdmin: this.isAdmin,
+        isCommunityManager: this.isCommunityManager // ✅ AJOUTÉ
+    });
 
-        // Si recruteur, charger son entreprise
-        if (this.isRecruteur) {
-            this.loadEntrepriseRecruteur();
-        }
+    // Si recruteur, charger son entreprise
+    if (this.isRecruteur) {
+        this.loadEntrepriseRecruteur();
     }
+    
+    // ✅ AJOUTÉ : Si CM, charger l'entreprise sélectionnée
+    if (this.isCommunityManager) {
+        this.loadEntrepriseCM();
+    }
+}
 
     private loadEntrepriseRecruteur(): void {
         const userId = this.authService.getCurrentUserId();
@@ -744,4 +842,57 @@ savePublicite() {
         });
     }
     
+    private loadEntrepriseCM(): void {
+    // Récupérer l'entreprise depuis le service (via Observable ou valeur actuelle)
+    const entrepriseId = this.entrepriseService.getSelectedEntrepriseId();
+    
+    console.log('🏢 Entreprise CM (ID):', entrepriseId);
+    
+    if (!entrepriseId) {
+        console.warn('⚠️ Aucune entreprise sélectionnée pour le CM');
+        this.messageService.add({
+            severity: 'warn',
+            summary: 'Aucune entreprise sélectionnée',
+            detail: 'Veuillez d\'abord sélectionner une entreprise depuis la page "Entreprises"',
+            life: 8000
+        });
+        return;
+    }
+    
+    // ✅ Récupérer l'objet entreprise complet
+    const entreprisesFull = this.entrepriseService.getEntreprisesFromMemory();
+    this.entrepriseCM = entreprisesFull.find(e => e.id === entrepriseId);
+    
+    if (this.entrepriseCM) {
+        console.log('✅ Entreprise CM chargée:', this.entrepriseCM.nom_entreprise);
+    } else {
+        // Fallback : charger depuis l'API
+        this.entrepriseService.getEntreprise(entrepriseId).subscribe({
+            next: (response) => {
+                this.entrepriseCM = response.data;
+                console.log('✅ Entreprise CM chargée (API):', this.entrepriseCM?.nom_entreprise);
+            },
+            error: (err) => {
+                console.error('❌ Erreur chargement entreprise CM:', err);
+            }
+        });
+    }
+}
+
+private subscribeToEntrepriseChanges(): void {
+    this.entrepriseService.selectedEntreprise$.subscribe({
+        next: (entreprise) => {
+            if (entreprise) {
+                console.log('🔄 Changement d\'entreprise détecté:', entreprise.nom_entreprise);
+                this.entrepriseCM = entreprise;
+                
+                // Recharger les publicités
+                this.loadData();
+            }
+        },
+        error: (err) => {
+            console.error('❌ Erreur subscription entreprise:', err);
+        }
+    });
+}
 }

@@ -1,9 +1,65 @@
-<!-- src/app/pages/dashboard/dashboard.component.html -->
+<div *ngIf="isCommunityManager" class="mb-6">
+  <div class="rounded-xl shadow-lg p-5" style="background-color: rgb(16, 16, 231);">
+    
+    <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+      
+      <!-- Partie gauche : Info entreprise -->
+      <div class="flex items-center gap-4">
+        <!-- Icône -->
+        <div class="flex items-center justify-center bg-white/20 rounded-lg w-12 h-12">
+          <i class="pi pi-building text-white text-2xl"></i>
+        </div>
 
+        <!-- Texte -->
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="inline-flex items-center gap-1 px-2 py-1 bg-white/20 text-white text-xs font-semibold rounded-full">
+              <i class="pi pi-star-fill text-yellow-300"></i>
+              Entreprise active
+            </span>
+          </div>
+          
+          <h2 class="text-2xl font-bold text-white">
+            {{ entrepriseNom || 'Aucune entreprise' }}
+          </h2>
+          
+          <p class="text-white/90 text-sm mt-1">
+            <i class="pi pi-chart-line"></i>
+            {{ entreprisesGerables.length }} entreprise(s) sous votre gestion
+          </p>
+        </div>
+      </div>
+
+      <!-- Partie droite : Sélecteur simple -->
+      <div class="flex items-center gap-2">
+        <!-- Dropdown SIMPLE -->
+        <select
+          [(ngModel)]="selectedEntreprise"
+          (change)="onEntrepriseChangeSimple($event)"
+          class="bg-white text-gray-900 rounded-lg px-4 py-2.5 font-medium focus:outline-none focus:ring-2 focus:ring-white/50 cursor-pointer min-w-[250px]"
+        >
+          <option *ngFor="let entreprise of entreprisesGerables" [ngValue]="entreprise">
+            {{ entreprise.nom_entreprise }}
+          </option>
+        </select>
+        
+        <!-- Bouton refresh -->
+        <button 
+          (click)="loadStats()"
+          [disabled]="loading"
+          class="bg-white/20 hover:bg-white/30 text-white rounded-lg p-2.5 transition-all disabled:opacity-50"
+          title="Actualiser"
+        >
+          <i class="pi pi-refresh text-xl" [ngClass]="{'animate-spin': loading}"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ✅ Statistiques -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
 
-  <!-- ========== STATISTIQUES ADMINISTRATEUR ========== -->
-  
   <!-- Utilisateurs -->
   <div class="card" *canSee="['Administrateur']">
     <div class="flex justify-between items-center">
@@ -43,12 +99,12 @@
     </div>
   </div>
 
-  <!-- Total Offres (Admin voit toutes, Recruteur voit les siennes) -->
-  <div class="card" *canSee="['Administrateur', 'Recruteur']">
+  <!-- Total Offres (Admin, Recruteur, CM) -->
+  <div class="card" *canSee="['Administrateur', 'Recruteur', 'community_manager']">
     <div class="flex justify-between items-center">
       <div>
         <span class="block text-muted-color font-medium mb-2">
-          {{ isRecruteur ? 'Mes Offres' : 'Total Offres' }}
+          {{ isRecruteur || isCommunityManager ? 'Offres gérées' : 'Total Offres' }}
         </span>
         <div class="text-surface-900 dark:text-surface-0 font-medium text-2xl">{{ totalOffres }}</div>
       </div>
@@ -59,12 +115,10 @@
   </div>
 
   <!-- Offres actives (publiées) -->
-  <div class="card" *canSee="['Administrateur', 'Recruteur']">
+  <div class="card" *canSee="['Administrateur', 'Recruteur', 'community_manager']">
     <div class="flex justify-between items-center">
       <div>
-        <span class="block text-muted-color font-medium mb-2">
-          {{ isRecruteur ? 'Mes Offres actives' : 'Offres publiées' }}
-        </span>
+        <span class="block text-muted-color font-medium mb-2">Offres actives</span>
         <div class="text-surface-900 dark:text-surface-0 font-medium text-2xl">{{ offresPubliees }}</div>
       </div>
       <div class="flex items-center justify-center bg-green-100 dark:bg-green-400/10 rounded-full w-12 h-12">
@@ -74,12 +128,10 @@
   </div>
 
   <!-- Offres en attente -->
-  <div class="card" *canSee="['Administrateur', 'Recruteur']">
+  <div class="card" *canSee="['Administrateur', 'Recruteur', 'community_manager']">
     <div class="flex justify-between items-center">
       <div>
-        <span class="block text-muted-color font-medium mb-2">
-          {{ isRecruteur ? 'Mes Offres en attente' : 'Offres en attente' }}
-        </span>
+        <span class="block text-muted-color font-medium mb-2">Offres en attente</span>
         <div class="text-surface-900 dark:text-surface-0 font-medium text-2xl">{{ offresEnAttente }}</div>
       </div>
       <div class="flex items-center justify-center bg-amber-100 dark:bg-amber-400/10 rounded-full w-12 h-12">
@@ -89,12 +141,10 @@
   </div>
 
   <!-- Brouillons -->
-  <div class="card" *canSee="['Administrateur', 'Recruteur']">
+  <div class="card" *canSee="['Administrateur', 'Recruteur', 'community_manager']">
     <div class="flex justify-between items-center">
       <div>
-        <span class="block text-muted-color font-medium mb-2">
-          {{ isRecruteur ? 'Mes Brouillons' : 'Brouillons' }}
-        </span>
+        <span class="block text-muted-color font-medium mb-2">Brouillons</span>
         <div class="text-surface-900 dark:text-surface-0 font-medium text-2xl">{{ offresBrouillon }}</div>
       </div>
       <div class="flex items-center justify-center bg-slate-100 dark:bg-slate-400/10 rounded-full w-12 h-12">
@@ -103,11 +153,11 @@
     </div>
   </div>
 
-  <!-- Publicités (Recruteur uniquement) -->
-  <div class="card" *canSee="['Recruteur']">
+  <!-- Publicités (Recruteur ET CM) -->
+  <div class="card" *canSee="['Recruteur', 'community_manager']">
     <div class="flex justify-between items-center">
       <div>
-        <span class="block text-muted-color font-medium mb-2">Mes Publicités</span>
+        <span class="block text-muted-color font-medium mb-2">Publicités gérées</span>
         <div class="text-surface-900 dark:text-surface-0 font-medium text-2xl">{{ totalPublicites }}</div>
       </div>
       <div class="flex items-center justify-center bg-orange-100 dark:bg-orange-400/10 rounded-full w-12 h-12">
@@ -117,11 +167,11 @@
   </div>
 
   <!-- Candidatures -->
-  <div class="card" *canSee="['Administrateur', 'Recruteur', 'Candidat']">
+  <div class="card" *canSee="['Administrateur', 'Recruteur', 'community_manager', 'Candidat']">
     <div class="flex justify-between items-center">
       <div>
         <span class="block text-muted-color font-medium mb-2">
-          {{ isRecruteur ? 'Candidatures reçues' : isCandidatUser ? 'Mes Candidatures' : 'Candidatures' }}
+          {{ isRecruteur || isCommunityManager ? 'Candidatures reçues' : isCandidatUser ? 'Mes Candidatures' : 'Candidatures' }}
         </span>
         <div class="text-surface-900 dark:text-surface-0 font-medium text-2xl">{{ totalCandidatures }}</div>
       </div>
@@ -137,7 +187,7 @@
   <!-- Répartition des offres -->
   <div class="card">
     <div class="font-semibold text-xl mb-4">
-      {{ isRecruteur ? 'Répartition de mes offres' : 'Répartition des offres' }}
+      {{ isRecruteur || isCommunityManager ? 'Répartition des offres gérées' : 'Répartition des offres' }}
     </div>
     <p-chart type="doughnut" [data]="offersChartData" [options]="chartOptions" class="h-80"></p-chart>
   </div>
@@ -145,7 +195,7 @@
   <!-- Statut des candidatures -->
   <div class="card">
     <div class="font-semibold text-xl mb-4">
-      {{ isRecruteur ? 'Statut des candidatures reçues' : 'Statut des candidatures' }}
+      {{ isRecruteur || isCommunityManager ? 'Statut des candidatures reçues' : 'Statut des candidatures' }}
     </div>
     <p-chart type="doughnut" [data]="candidaturesChartData" [options]="chartOptions" class="h-80"></p-chart>
   </div>
@@ -153,36 +203,36 @@
   <!-- Offres récentes -->
   <div class="card col-span-1 lg:col-span-2">
     <div class="font-semibold text-xl mb-4">
-      {{ isRecruteur ? 'Mes offres récentes' : 'Offres récentes' }}
+      {{ isRecruteur || isCommunityManager ? 'Offres récentes gérées' : 'Offres récentes' }}
     </div>
     <p-table [value]="recentOffres" [paginator]="true" [rows]="5" responsiveLayout="scroll">
       <ng-template pTemplate="header">
         <tr>
           <th>Titre</th>
-          <th *ngIf="!isRecruteur">Entreprise</th>
+          <th *ngIf="!isRecruteur && !isCommunityManager">Entreprise</th>
           <th>Statut</th>
           <th>Publiée le</th>
-          <th *ngIf="isRecruteur">Candidatures</th>
+          <th *ngIf="isRecruteur || isCommunityManager">Candidatures</th>
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-o>
         <tr>
           <td>{{ o.titre }}</td>
-          <td *ngIf="!isRecruteur">{{ o.entreprise }}</td>
+          <td *ngIf="!isRecruteur && !isCommunityManager">{{ o.entreprise }}</td>
           <td>
             <span [class]="getStatutClass(o.statut)">
               {{ o.statut }}
             </span>
           </td>
           <td>{{ o.date_publication | date:'dd/MM/yyyy' }}</td>
-          <td *ngIf="isRecruteur">
+          <td *ngIf="isRecruteur || isCommunityManager">
             <span class="font-semibold text-blue-600">{{ o.candidatures_count || 0 }}</span>
           </td>
         </tr>
       </ng-template>
       <ng-template pTemplate="emptymessage">
         <tr>
-          <td [attr.colspan]="isRecruteur ? 4 : 4" class="text-center py-4">
+          <td [attr.colspan]="isRecruteur || isCommunityManager ? 4 : 4" class="text-center py-4">
             <div class="flex flex-col items-center gap-2 text-gray-500">
               <i class="pi pi-inbox text-3xl"></i>
               <p>Aucune offre pour le moment</p>
@@ -193,3 +243,19 @@
     </p-table>
   </div>
 </div>
+
+<style> 
+/* Animation pour le bouton refresh */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+</style>

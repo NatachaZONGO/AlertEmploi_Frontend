@@ -22,6 +22,7 @@ import { OffreService } from '../../../crud/offre/offre.service';
 import { enrichOffreForUi, Offre } from '../../../crud/offre/offre.model';
 import { AuthService } from '../../../auth/auth.service';
 import { ProfileService } from '../../../crud/profil/profil.service';
+import { FooterWidget } from '../footerwidget';
 
 @Component({
   selector: 'app-offres-list',
@@ -29,7 +30,7 @@ import { ProfileService } from '../../../crud/profil/profil.service';
   imports: [
     CommonModule, FormsModule, ButtonModule, TagModule, PaginatorModule,
     InputTextModule, DialogModule, InputNumberModule, TextareaModule,
-    CheckboxModule, RadioButtonModule, SelectModule, ToastModule, TopbarWidget
+    CheckboxModule, RadioButtonModule, SelectModule, ToastModule, TopbarWidget, FooterWidget
   ],
   templateUrl: './offres-list.component.html',
   providers: [MessageService],

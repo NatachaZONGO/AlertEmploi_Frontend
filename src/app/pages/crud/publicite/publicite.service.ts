@@ -1,5 +1,5 @@
 // publicite.service.ts
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { map, Observable, of } from 'rxjs';
 import { BackendURL, imageUrl } from '../../../Share/const';
@@ -85,7 +85,9 @@ export class Publiciteservice {
   // MÉTHODES CRUD
   // ===============================
 
-  /** ADMIN - Toutes les publicités */
+  /** 
+   * ✅ ADMIN - Toutes les publicités 
+   */
   getPublicites(): Observable<Publicite[]> {
     console.log('📡 Appel getPublicites() (ADMIN) - endpoint:', this.apiUrl);
     
@@ -100,20 +102,80 @@ export class Publiciteservice {
     );
   }
 
-  /** RECRUTEUR - Mes publicités uniquement */
-  getMesPublicites(): Observable<Publicite[]> {
-    const url = `${this.apiUrl}/mes-publicites`;
-    console.log('📡 Appel getMesPublicites() (RECRUTEUR) - endpoint:', url);
+  /** 
+   * ✅ RECRUTEUR/CM - Mes publicités (avec filtre entreprise optionnel)
+   * @param entrepriseId (optionnel) - Pour filtrer par entreprise spécifique
+   */
+  getMesPublicites(entrepriseId?: number): Observable<Publicite[]> {
+    const userRole = this.authService.getCurrentUserRole()?.toLowerCase();
+    
+    // ✅ Construire l'URL avec entreprise_id si fourni
+    let url = `${this.apiUrl}/mes-publicites`;
+    if (entrepriseId) {
+      url += `?entreprise_id=${entrepriseId}`;
+      console.log('🔍 Filtrage par entreprise:', entrepriseId);
+    }
+    
+    console.log('📡 Appel getMesPublicites() pour rôle:', userRole, '- endpoint:', url);
     
     return this.http.get<any>(url, { headers: this.getHeaders() }).pipe(
       map(res => {
         console.log('📦 Réponse getMesPublicites:', res);
-        return Array.isArray(res?.data?.data) ? res.data.data
-          : Array.isArray(res?.data) ? res.data
-          : Array.isArray(res) ? res
-          : [];
+        
+        // ✅ Gérer la pagination
+        if (res?.data?.data) {
+          // Format paginé : { data: { data: [...], meta: {...} } }
+          return res.data.data;
+        } else if (res?.data) {
+          // Format simple : { data: [...] }
+          return Array.isArray(res.data) ? res.data : [];
+        } else if (Array.isArray(res)) {
+          // Format direct : [...]
+          return res;
+        }
+        
+        return [];
+      }),
+      map((rows: any[]) => {
+        // ✅ Log pour debug
+        const msg = entrepriseId 
+          ? `pour entreprise ${entrepriseId}` 
+          : 'pour toutes les entreprises';
+        console.log(`✅ ${rows.length} publicités chargées ${msg}`);
+        
+        // ✅ Résoudre les URLs des médias
+        return rows.map(p => ({
+          ...p,
+          image: this.resolveMedia(p.image_url || p.image),
+          video: this.resolveMedia(p.video_url || p.video),
+        }));
       })
     );
+  }
+
+  /**
+   * ✅ NOUVEAU : Récupérer les publicités selon le rôle
+   * @param entrepriseId (optionnel) - Pour CM : filtrer par entreprise
+   */
+  getPublicitesByRole(entrepriseId?: number): Observable<Publicite[]> {
+    const userRole = this.authService.getCurrentUserRole()?.toLowerCase();
+    console.log('🔍 Récupération publicités pour rôle:', userRole);
+
+    // Administrateur
+    if (userRole === 'administrateur' || userRole === 'admin') {
+      console.log('📋 Mode Admin');
+      return this.getPublicites();
+    }
+
+    // ✅ Recruteur OU Community Manager (avec entrepriseId optionnel)
+    if (userRole === 'recruteur' || userRole === 'community_manager') {
+      console.log('💼 Mode Recruteur/CM');
+      return this.getMesPublicites(entrepriseId);
+    }
+
+    // Rôle non reconnu
+    console.warn('⚠️ Rôle non reconnu:', userRole);
+    return of([]);
   }
 
   private isFormData(x: any): x is FormData {
@@ -166,7 +228,6 @@ export class Publiciteservice {
   createPublicite(pOrBody: Publicite | FormData | any): Observable<any> {
     const body = this.isFormData(pOrBody) || typeof pOrBody !== 'object' ? pOrBody : this.buildBody(pOrBody);
     
-    // Pour FormData, on ne met pas Content-Type (le navigateur le fait automatiquement)
     const headers = this.isFormData(body) 
       ? new HttpHeaders({ 'Authorization': `Bearer ${this.authService.getToken()}` })
       : this.getHeaders();
@@ -275,6 +336,27 @@ export class Publiciteservice {
   }
 
   // ===============================
+  // STATISTIQUES
+  // ===============================
+
+  /**
+   * ✅ NOUVEAU : Récupérer les statistiques des publicités
+   * - Admin : Globales
+   * - Recruteur/CM : Personnelles (filtrées par entreprises)
+   */
+  getStatistiques(): Observable<any> {
+    const headers = this.getHeaders();
+    console.log('📊 Récupération statistiques publicités');
+    
+    return this.http.get<any>(`${this.apiUrl}/statistiques`, { headers }).pipe(
+      map(response => {
+        console.log('📦 Stats reçues:', response);
+        return response?.data ?? response ?? {};
+      })
+    );
+  }
+
+  // ===============================
   // DIVERS
   // ===============================
 
@@ -337,5 +419,15 @@ export class Publiciteservice {
         video: this.resolveMedia(p.video_url || p.video),
       })))
     );
+  }
+
+  getCommunityManagerPublicites(entrepriseId?: number): Observable<any> {
+    let params = new HttpParams();
+    
+    if (entrepriseId) {
+      params = params.set('entreprise_id', entrepriseId.toString());
+    }
+    
+    return this.http.get<any>(`${this.apiUrl}/community/publicites`, { params });
   }
 }

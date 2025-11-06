@@ -1,5 +1,4 @@
 <p-toast></p-toast>
-
 <p-toolbar styleClass="mb-6">
   <ng-template pTemplate="start">
     <p-button 
@@ -105,8 +104,22 @@
       <td><span class="font-semibold">{{ user.nom || 'N/A' }}</span></td>
       <td><span class="font-semibold">{{ user.prenom || 'N/A' }}</span></td>
       <td>
-        <p-tag [value]="user.roleLabel || 'N/A'" severity="info" styleClass="text-xs"></p-tag>
+  <div class="flex flex-wrap gap-1">
+    <p-tag 
+      *ngFor="let role of user.roles"
+      [value]="role.nom || role"
+      severity="info"
+      styleClass="text-xs">
+    </p-tag>
+    <p-tag 
+      *ngIf="!user.roles || user.roles.length === 0"
+      value="Aucun rôle"
+      severity="secondary"
+      styleClass="text-xs">
+    </p-tag>
+  </div>
       </td>
+
       <td>{{ user.telephone || 'N/A' }}</td>
       <td>
         <a [href]="'mailto:' + user.email" class="text-blue-600 hover:underline">
@@ -152,6 +165,16 @@
             (click)="editUser(user)"
             pTooltip="Modifier"
             tooltipPosition="top" />
+            <p-button 
+              *ngIf="isCommunityManager(user)"
+              icon="pi pi-building" 
+              [rounded]="true" 
+              [outlined]="true" 
+              severity="success"
+              size="small"
+              (click)="openEntrepriseAssignmentModal(user)"
+              pTooltip="Attribuer des entreprises"
+              tooltipPosition="top" />
           <p-button 
             icon="pi pi-trash" 
             severity="danger" 
@@ -185,7 +208,7 @@
   </ng-template>
 </p-table>
 
-<!-- Dialog Créer/Modifier Utilisateur - MODERNISÉ -->
+<!-- Dialog Créer/Modifier Utilisateur - VERSION ADMIN SIMPLIFIÉE -->
 <p-dialog 
   [(visible)]="userDialog" 
   [modal]="true"
@@ -193,21 +216,21 @@
   [resizable]="false"
   [closable]="true"
   styleClass="user-form-dialog"
-  [style]="{ width: '800px', maxWidth: '95vw' }">
+  [style]="{ width: '600px', maxWidth: '95vw' }">
   
   <!-- Header personnalisé -->
   <ng-template pTemplate="header">
     <div class="dialog-custom-header">
       <div class="header-content">
         <div class="dialog-header-icon">
-          <i class="pi pi-user-plus"></i>
+          <i class="pi pi-user-edit"></i>
         </div>
         <div class="dialog-header-text">
           <h2 class="text-xl font-bold m-0">
-            {{ user.id ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur' }}
+            Modifier les rôles et le statut
           </h2>
           <p class="text-sm m-0 mt-1 opacity-90">
-            {{ user.id ? 'Modifiez les informations de l\'utilisateur' : 'Créez un nouveau compte utilisateur' }}
+            Gérez les rôles et le statut de {{ user.prenom }} {{ user.nom }}
           </p>
         </div>
       </div>
@@ -217,251 +240,167 @@
   <ng-template pTemplate="content">
     <div class="form-container">
       
-      <!-- Section 1 : Identité -->
-      <div class="form-section">
-        <div class="section-header">
-          <i class="pi pi-id-card text-blue-600 mr-2"></i>
-          <h3 class="section-title">Identité</h3>
-        </div>
-        
-        <div class="form-grid">
-          <!-- Nom -->
-          <div class="form-field">
-            <label for="nom" class="field-label">
-              Nom <span class="required">*</span>
-            </label>
-            <div class="input-with-icon">
-              <i class="pi pi-user input-icon"></i>
-              <input 
-                type="text" 
-                pInputText 
-                id="nom" 
-                [(ngModel)]="user.nom" 
-                placeholder="Nom de famille"
-                [class.input-error]="submitted && !user.nom"
-                class="field-input pl-10"
-                autofocus />
-            </div>
-            <small class="error-message" *ngIf="submitted && !user.nom">
-              Le nom est obligatoire
-            </small>
+      <!-- Info utilisateur (readonly) -->
+      <div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 mb-6 border border-blue-200">
+        <div class="flex items-center gap-4">
+          <!-- Avatar -->
+          <div class="flex-shrink-0">
+            <ng-container *ngIf="user.photo; else noUserPhoto">
+              <img 
+                [src]="getImageUrl(user.photo)"
+                [alt]="user.nom"
+                class="w-16 h-16 rounded-full object-cover border-2 border-white shadow-md"
+                (error)="onImageError($event)">
+            </ng-container>
+            <ng-template #noUserPhoto>
+              <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center border-2 border-white shadow-md">
+                <i class="pi pi-user text-2xl text-white"></i>
+              </div>
+            </ng-template>
           </div>
-
-          <!-- Prénom -->
-          <div class="form-field">
-            <label for="prenom" class="field-label">
-              Prénom <span class="required">*</span>
-            </label>
-            <div class="input-with-icon">
-              <i class="pi pi-user input-icon"></i>
-              <input 
-                type="text" 
-                pInputText 
-                id="prenom" 
-                [(ngModel)]="user.prenom" 
-                placeholder="Prénom"
-                [class.input-error]="submitted && !user.prenom"
-                class="field-input pl-10" />
-            </div>
-            <small class="error-message" *ngIf="submitted && !user.prenom">
-              Le prénom est obligatoire
-            </small>
+          
+          <!-- Info -->
+          <div class="flex-1">
+            <h3 class="font-bold text-lg text-gray-800 m-0">
+              {{ user.prenom }} {{ user.nom }}
+            </h3>
+            <p class="text-sm text-gray-600 m-0 mt-1 flex items-center gap-2">
+              <i class="pi pi-envelope text-xs"></i>
+              {{ user.email }}
+            </p>
+            <p class="text-sm text-gray-600 m-0 mt-1 flex items-center gap-2" *ngIf="user.telephone">
+              <i class="pi pi-phone text-xs"></i>
+              {{ user.telephone }}
+            </p>
+          </div>
+          
+          <!-- ID -->
+          <div class="text-right">
+            <p class="text-xs text-gray-500 m-0">ID Utilisateur</p>
+            <p class="font-bold text-gray-800 m-0">#{{ user.id }}</p>
           </div>
         </div>
       </div>
 
-      <!-- Section 2 : Contact -->
-      <div class="form-section">
-        <div class="section-header">
-          <i class="pi pi-envelope text-blue-600 mr-2"></i>
-          <h3 class="section-title">Coordonnées</h3>
-        </div>
-        
-        <div class="form-grid">
-          <!-- Email -->
-          <div class="form-field">
-            <label for="email" class="field-label">
-              Email <span class="required">*</span>
-            </label>
-            <div class="input-with-icon">
-              <i class="pi pi-at input-icon"></i>
-              <input 
-                type="email" 
-                pInputText 
-                id="email" 
-                [(ngModel)]="user.email" 
-                placeholder="exemple@email.com"
-                [class.input-error]="submitted && !user.email"
-                class="field-input pl-10" />
-            </div>
-            <small class="error-message" *ngIf="submitted && !user.email">
-              L'email est obligatoire
-            </small>
-          </div>
-
-          <!-- Téléphone -->
-          <div class="form-field">
-            <label for="phone" class="field-label">
-              Téléphone <span class="required">*</span>
-            </label>
-            <div class="input-with-icon">
-              <i class="pi pi-phone input-icon"></i>
-              <input 
-                type="text" 
-                pInputText 
-                id="phone" 
-                [(ngModel)]="user.telephone" 
-                placeholder="+226 XX XX XX XX"
-                [class.input-error]="submitted && !user.telephone"
-                class="field-input pl-10" />
-            </div>
-            <small class="error-message" *ngIf="submitted && !user.telephone">
-              Le téléphone est obligatoire
-            </small>
-          </div>
-        </div>
-      </div>
-
-      <!-- Section 3 : Rôle et Sécurité -->
+      <!-- ✅ Section Rôles (Multi-select) -->
       <div class="form-section">
         <div class="section-header">
           <i class="pi pi-shield text-blue-600 mr-2"></i>
-          <h3 class="section-title">Rôle et Sécurité</h3>
+          <h3 class="section-title">Rôles et permissions</h3>
         </div>
         
-        <div class="form-grid">
-          <!-- Rôle -->
-          <div class="form-field">
-            <label for="role" class="field-label">
-              Rôle <span class="required">*</span>
-            </label>
-            <p-dropdown 
-              id="role" 
-              [(ngModel)]="user.roleId" 
-              [options]="roles" 
-              optionLabel="label" 
-              optionValue="value"
-              placeholder="Sélectionnez un rôle"
-              [class.input-error]="submitted && !user.roleId"
-              styleClass="w-full">
-            </p-dropdown>
-            <small class="error-message" *ngIf="submitted && !user.roleId">
-              Le rôle est obligatoire
-            </small>
-          </div>
-
-          <!-- Statut -->
-          <div class="form-field">
-            <label for="statut" class="field-label">
-              Statut <span class="required">*</span>
-            </label>
-            <p-dropdown 
-              id="statut" 
-              [(ngModel)]="user.statut" 
-              [options]="statuts" 
-              optionLabel="label"
-              optionValue="value" 
-              placeholder="Sélectionnez un statut"
-              [class.input-error]="submitted && !user.statut"
-              styleClass="w-full">
-            </p-dropdown>
-            <small class="error-message" *ngIf="submitted && !user.statut">
-              Le statut est obligatoire
-            </small>
-          </div>
-
-          <!-- Mot de passe -->
-          <div class="form-field full-width">
-            <label for="password" class="field-label">
-              Mot de passe 
-              <span class="required" *ngIf="!user.id">*</span>
-              <span class="optional" *ngIf="user.id">(laisser vide pour ne pas changer)</span>
-            </label>
-            <div class="input-with-icon">
-              <i class="pi pi-lock input-icon"></i>
-              <input 
-                type="password" 
-                pInputText 
-                id="password" 
-                [(ngModel)]="user.password" 
-                placeholder="Minimum 8 caractères"
-                [required]="!user.id"
-                [class.input-error]="submitted && !user.password && !user.id"
-                class="field-input pl-10" />
+        <div class="form-field">
+          <label for="roles" class="field-label">
+            Rôles attribués <span class="required">*</span>
+          </label>
+          
+          <!-- ✅ Multi-select pour les rôles -->
+          <p-multiSelect
+            id="roles"
+            [(ngModel)]="user.selectedRoleIds"
+            [options]="roles"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Sélectionnez un ou plusieurs rôles"
+            [filter]="true"
+            filterPlaceHolder="Rechercher un rôle..."
+            emptyFilterMessage="Aucun rôle trouvé"
+            [class.input-error]="submitted && (!user.selectedRoleIds || user.selectedRoleIds.length === 0)"
+            styleClass="w-full"
+            [showToggleAll]="false"
+            [maxSelectedLabels]="3"
+            selectedItemsLabel="{0} rôles sélectionnés">
+            
+            <!-- Template pour les items -->
+            <ng-template pTemplate="item" let-role>
+              <div class="flex items-center gap-2 py-2">
+                <i class="pi pi-shield text-blue-600"></i>
+                <span class="font-medium">{{ role.label }}</span>
+              </div>
+            </ng-template>
+            
+            <!-- Template pour les items sélectionnés (chips) -->
+            <ng-template pTemplate="selectedItems">
+              <div class="flex flex-wrap gap-1" *ngIf="user.selectedRoleIds && user.selectedRoleIds.length > 0">
+                <p-tag 
+                  *ngFor="let roleId of user.selectedRoleIds.slice(0, 3)"
+                  [value]="getRoleLabelById(roleId)"
+                  severity="info"
+                  styleClass="text-xs px-2 py-1">
+                </p-tag>
+                <p-tag 
+                  *ngIf="user.selectedRoleIds.length > 3"
+                  [value]="'+' + (user.selectedRoleIds.length - 3)"
+                  severity="secondary"
+                  styleClass="text-xs px-2 py-1">
+                </p-tag>
+              </div>
+            </ng-template>
+          </p-multiSelect>
+          
+          <small class="error-message" *ngIf="submitted && (!user.selectedRoleIds || user.selectedRoleIds.length === 0)">
+            Au moins un rôle doit être sélectionné
+          </small>
+          
+          <!-- Rôles actuels (avant modification) -->
+          <div class="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200" *ngIf="user.roles && user.roles.length > 0">
+            <p class="text-xs text-gray-600 font-semibold mb-2 flex items-center">
+              <i class="pi pi-info-circle mr-1"></i>
+              Rôles actuels :
+            </p>
+            <div class="flex flex-wrap gap-1">
+              <p-tag 
+                *ngFor="let role of user.roles"
+                [value]="role.nom || role"
+                severity="secondary"
+                styleClass="text-xs">
+              </p-tag>
             </div>
-            <small class="error-message" *ngIf="submitted && !user.password && !user.id">
-              Le mot de passe est obligatoire pour la création
-            </small>
           </div>
         </div>
       </div>
 
-      <!-- Section 4 : Photo de profil -->
+      <p-divider></p-divider>
+
+      <!-- Section Statut -->
       <div class="form-section">
         <div class="section-header">
-          <i class="pi pi-image text-blue-600 mr-2"></i>
-          <h3 class="section-title">Photo de profil</h3>
+          <i class="pi pi-info-circle text-blue-600 mr-2"></i>
+          <h3 class="section-title">Statut du compte</h3>
         </div>
-
-        <div class="photo-upload-area">
-          <!-- Photo actuelle ou aperçu -->
-          <div class="current-photo-zone">
-            <ng-container *ngIf="previewPhotoUrl; else currentPhotoBlock">
-              <div class="photo-preview-wrapper">
-                <img [src]="previewPhotoUrl" alt="Nouvelle photo" class="photo-preview-img" />
-                <span class="photo-badge new-badge">Nouvelle</span>
-                <button 
-                  type="button"
-                  class="remove-photo-btn"
-                  (click)="previewPhotoUrl =  null; user.photo = ''"
-                  title="Supprimer">
-                  <i class="pi pi-times"></i>
-                </button>
+        
+        <div class="form-field">
+          <label for="statut" class="field-label">
+            Statut <span class="required">*</span>
+          </label>
+          <p-dropdown 
+            id="statut" 
+            [(ngModel)]="user.statut" 
+            [options]="statuts" 
+            optionLabel="label"
+            optionValue="value" 
+            placeholder="Sélectionnez un statut"
+            [class.input-error]="submitted && !user.statut"
+            styleClass="w-full">
+            
+            <ng-template pTemplate="selectedItem" let-item>
+              <div class="flex items-center gap-2" *ngIf="item">
+                <i class="pi" [class.pi-check-circle]="item.value === 'actif'" [class.pi-times-circle]="item.value !== 'actif'"></i>
+                <span class="font-medium">{{ item.label }}</span>
               </div>
-            </ng-container>
-            
-            <ng-template #currentPhotoBlock>
-              <ng-container *ngIf="user.photo; else noPhotoBlock">
-                <div class="photo-preview-wrapper">
-                  <img [src]="getImageUrl(user.photo)" alt="Photo actuelle" 
-                       class="photo-preview-img"
-                       (error)="onImageError($event)" />
-                  <span class="photo-badge current-badge">Actuelle</span>
-                </div>
-              </ng-container>
-              
-              <ng-template #noPhotoBlock>
-                <div class="no-photo-block">
-                  <i class="pi pi-user text-4xl text-gray-400"></i>
-                  <p class="text-sm text-gray-500 mt-2">Aucune photo</p>
-                </div>
-              </ng-template>
             </ng-template>
-          </div>
-
-          <!-- Contrôles d'upload -->
-          <div class="upload-controls">
-            <input 
-              #fileInput
-              type="file" 
-              id="image" 
-              (change)="onFileChange($event)"
-              accept="image/jpeg, image/png, image/jpg, image/gif" 
-              style="display: none;" />
             
-            <button 
-              type="button"
-              pButton
-              label="Choisir une photo"
-              icon="pi pi-upload"
-              class="p-button-outlined w-full"
-              (click)="fileInput.click()">
-            </button>
-            
-            <small class="text-gray-500 text-xs text-center mt-2">
-              JPG, PNG ou GIF (max. 5MB)
-            </small>
-          </div>
+            <ng-template pTemplate="item" let-item>
+              <div class="flex items-center gap-2 py-2">
+                <i class="pi" [class.pi-check-circle]="item.value === 'actif'" [class.pi-times-circle]="item.value !== 'actif'"></i>
+                <span>{{ item.label }}</span>
+              </div>
+            </ng-template>
+          </p-dropdown>
+          
+          <small class="error-message" *ngIf="submitted && !user.statut">
+            Le statut est obligatoire
+          </small>
         </div>
       </div>
 
@@ -479,9 +418,10 @@
         (click)="hideDialog()">
       </p-button>
       <p-button 
-        [label]="user.id ? 'Mettre à jour' : 'Créer l\'utilisateur'"
-        [icon]="user.id ? 'pi pi-check' : 'pi pi-user-plus'"
+        label="Enregistrer les modifications"
+        icon="pi pi-check"
         styleClass="footer-btn-submit"
+        [disabled]="submitted && (!user.selectedRoleIds || user.selectedRoleIds.length === 0 || !user.statut)"
         (click)="saveUser()">
       </p-button>
     </div>
@@ -770,7 +710,264 @@
     </div>
   </ng-template>
 </p-dialog>
+<!-- ========================================
+     ✅ MODAL : ATTRIBUTION DES ENTREPRISES AU CM
+     ======================================== -->
+<p-dialog
+  [(visible)]="entrepriseAssignmentDialog"
+  [style]="{width: '900px', maxWidth: '95vw'}"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  styleClass="entreprise-assignment-dialog">
+  
+  <!-- Header personnalisé -->
+  <ng-template pTemplate="header">
+    <div class="w-full text-white rounded-t-xl" style="background-color: #063eda;">
+      <div class="px-6 py-4">
+        <div class="flex items-center">
+          <div class="bg-white/20 rounded-full p-3 mr-4">
+            <i class="pi pi-building text-2xl"></i>
+          </div>
+          <div>
+            <h2 class="text-xl font-bold m-0 text-white">Attribuer des entreprises</h2>
+            <p class="text-white/80 text-sm mt-1">
+              Gérez les entreprises assignées au Community Manager
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </ng-template>
 
+  <ng-template pTemplate="content">
+    <div class="space-y-5" *ngIf="selectedUserForEntreprises">
+      <!-- Info du CM -->
+      <div class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-200">
+        <div class="flex items-center gap-4">
+          <!-- Avatar -->
+          <div class="flex-shrink-0">
+            <ng-container *ngIf="selectedUserForEntreprises.photo; else noCmPhoto">
+              <img 
+                [src]="getImageUrl(selectedUserForEntreprises.photo)"
+                [alt]="selectedUserForEntreprises.nom"
+                class="w-16 h-16 rounded-full object-cover border-2 border-white shadow-md"
+                (error)="onImageError($event)">
+            </ng-container>
+            <ng-template #noCmPhoto>
+              <div class="w-16 h-16 rounded-full bg-gradient-to-br from-purple-400 to-indigo-500 flex items-center justify-center border-2 border-white shadow-md">
+                <i class="pi pi-user text-2xl text-white"></i>
+              </div>
+            </ng-template>
+          </div>
+          
+          <!-- Info -->
+          <div class="flex-1">
+            <h3 class="font-bold text-lg text-gray-800 m-0">
+              {{ selectedUserForEntreprises.prenom }} {{ selectedUserForEntreprises.nom }}
+            </h3>
+            <p class="text-sm text-gray-600 m-0 mt-1">
+              <i class="pi pi-envelope mr-1"></i>
+              {{ selectedUserForEntreprises.email }}
+            </p>
+          </div>
+          
+          <!-- Badge rôle -->
+          <div>
+            <p-tag value="Community Manager" severity="success" styleClass="text-sm px-3 py-2">
+              <i class="pi pi-shield mr-1"></i>
+            </p-tag>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section : Entreprises assignées -->
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="text-base font-bold text-gray-800 m-0 flex items-center">
+            <i class="pi pi-check-circle text-green-600 mr-2"></i>
+            Entreprises assignées ({{ assignedEntreprises.length }})
+          </h4>
+          <p-tag 
+            [value]="assignedEntreprises.length + ' entreprise(s)'" 
+            severity="info"
+            styleClass="text-xs">
+          </p-tag>
+        </div>
+        
+        <!-- Liste vide -->
+        <div *ngIf="assignedEntreprises.length === 0" 
+             class="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+          <i class="pi pi-inbox text-4xl text-gray-400 mb-2"></i>
+          <p class="text-gray-500 font-medium">Aucune entreprise assignée</p>
+          <p class="text-sm text-gray-400">Ajoutez des entreprises ci-dessous</p>
+        </div>
+
+        <!-- Liste des entreprises assignées -->
+        <div *ngIf="assignedEntreprises.length > 0" 
+             class="space-y-2 max-h-64 overflow-y-auto pr-2">
+          <div *ngFor="let entreprise of assignedEntreprises" 
+               class="flex items-center justify-between p-3 bg-white border border-green-100 rounded-lg hover:shadow-md transition-all duration-200 group">
+            <div class="flex items-center gap-3 flex-1">
+              <!-- Logo entreprise -->
+              <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-green-100 to-green-200 flex items-center justify-center flex-shrink-0">
+                <ng-container *ngIf="entreprise.logo; else noLogo">
+                  <img 
+                    [src]="entreprise.logo" 
+                    [alt]="entreprise.nom_entreprise"
+                    class="w-10 h-10 rounded object-cover">
+                </ng-container>
+                <ng-template #noLogo>
+                  <i class="pi pi-building text-green-600 text-xl"></i>
+                </ng-template>
+              </div>
+              
+              <!-- Info entreprise -->
+              <div class="flex-1 min-w-0">
+                <p class="font-semibold text-gray-800 m-0 truncate">
+                  {{ entreprise.nom_entreprise }}
+                </p>
+                <p class="text-xs text-gray-500 m-0 mt-1">
+                  <i class="pi pi-tag mr-1"></i>
+                  {{ entreprise.secteur_activite || 'Non spécifié' }}
+                </p>
+              </div>
+              
+              <!-- Statut -->
+              <p-tag 
+                [value]="entreprise.statut" 
+                [severity]="entreprise.statut === 'valide' ? 'success' : 'warning'"
+                styleClass="text-xs">
+              </p-tag>
+            </div>
+            
+            <!-- Bouton retirer -->
+            <p-button 
+              icon="pi pi-times" 
+              severity="danger"
+              [rounded]="true"
+              [text]="true"
+              size="small"
+              class="ml-2 opacity-0 group-hover:opacity-100 transition-opacity"
+              (click)="removeEntrepriseFromCM(entreprise.id)"
+              pTooltip="Retirer cette entreprise"
+              tooltipPosition="left">
+            </p-button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Divider -->
+      <div class="border-t-2 border-gray-200"></div>
+
+      <!-- Section : Ajouter une entreprise -->
+      <div>
+        <h4 class="text-base font-bold text-gray-800 mb-3 flex items-center">
+          <i class="pi pi-plus-circle text-blue-600 mr-2"></i>
+          Ajouter une entreprise
+        </h4>
+        
+        <div class="bg-blue-50 rounded-xl p-4 border border-blue-200">
+          <!-- Dropdown entreprise -->
+          <div class="mb-3">
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Sélectionnez une entreprise <span class="text-red-500">*</span>
+            </label>
+            <p-dropdown 
+              [(ngModel)]="selectedEntrepriseToAdd"
+              [options]="availableEntreprises"
+              optionLabel="nom_entreprise"
+              optionValue="id"
+              placeholder="Choisir une entreprise..."
+              styleClass="w-full"
+              [filter]="true"
+              filterBy="nom_entreprise,secteur_activite"
+              [showClear]="true"
+              emptyMessage="Toutes les entreprises sont déjà assignées"
+              emptyFilterMessage="Aucune entreprise correspondante">
+              
+              <!-- Template pour l'item sélectionné -->
+              <ng-template pTemplate="selectedItem">
+                <div class="flex items-center gap-2" *ngIf="selectedEntrepriseToAdd">
+                  <i class="pi pi-building text-blue-600"></i>
+                  <span class="font-medium">
+                    {{ getEntrepriseById(selectedEntrepriseToAdd)?.nom_entreprise }}
+                  </span>
+                </div>
+              </ng-template>
+              
+              <!-- Template pour chaque item dans la liste -->
+              <ng-template pTemplate="item" let-entreprise>
+                <div class="flex items-center gap-3 py-2">
+                  <div class="w-8 h-8 rounded bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <i class="pi pi-building text-blue-600 text-sm"></i>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="font-semibold text-gray-800 truncate">
+                      {{ entreprise.nom_entreprise }}
+                    </div>
+                    <div class="text-xs text-gray-500 truncate">
+                      {{ entreprise.secteur_activite || 'Non spécifié' }}
+                    </div>
+                  </div>
+                  <p-tag 
+                    [value]="entreprise.statut" 
+                    [severity]="entreprise.statut === 'valide' ? 'success' : 'warning'"
+                    styleClass="text-xs">
+                  </p-tag>
+                </div>
+              </ng-template>
+            </p-dropdown>
+          </div>
+          
+          <!-- Bouton ajouter -->
+          <p-button 
+            label="Ajouter cette entreprise"
+            icon="pi pi-plus"
+            styleClass="w-full"
+            (click)="addEntrepriseToCM()"
+            [disabled]="!selectedEntrepriseToAdd || loading()">
+          </p-button>
+        </div>
+      </div>
+
+      <!-- Info stats -->
+      <div class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg p-4 border border-indigo-200">
+        <div class="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <i class="pi pi-building text-2xl text-indigo-600 mb-1"></i>
+            <p class="text-2xl font-bold text-gray-800 m-0">{{ assignedEntreprises.length }}</p>
+            <p class="text-xs text-gray-600 m-0">Assignées</p>
+          </div>
+          <div>
+            <i class="pi pi-check-circle text-2xl text-green-600 mb-1"></i>
+            <p class="text-2xl font-bold text-gray-800 m-0">
+              {{ getValidEntreprisesCount() }}
+            </p>
+            <p class="text-xs text-gray-600 m-0">Valides</p>
+          </div>
+          <div>
+            <i class="pi pi-inbox text-2xl text-blue-600 mb-1"></i>
+            <p class="text-2xl font-bold text-gray-800 m-0">{{ availableEntreprises.length }}</p>
+            <p class="text-xs text-gray-600 m-0">Disponibles</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </ng-template>
+
+  <ng-template pTemplate="footer">
+    <div class="flex justify-between items-center w-full">
+      <p-button 
+        label="Fermer" 
+        icon="pi pi-times" 
+        severity="secondary"
+        [outlined]="true"
+        (click)="closeEntrepriseAssignmentModal()">
+      </p-button>
+    </div>
+  </ng-template>
+</p-dialog>
 <style>
 /* ============================================
    STYLES DU TABLEAU

@@ -9,9 +9,16 @@
 
 <p-toolbar styleClass="mb-6">
   <ng-template pTemplate="start">
-    <p-button label="Nouvelle entreprise" icon="pi pi-plus" severity="success" class="mr-2" (onClick)="openNew()" />
-    <p-button severity="danger" label="Supprimer" icon="pi pi-trash" outlined
+    <p-button cansee="Administrateur" label="Nouvelle entreprise" icon="pi pi-plus" severity="success" class="mr-2" (onClick)="openNew()" />
+    <p-button cansee="Administrateur" severity="danger" label="Supprimer" icon="pi pi-trash" outlined
               (onClick)="deleteSelectedEntreprises()" [disabled]="!selectedEntreprises || !selectedEntreprises.length" />
+    <p-tag 
+      *ngIf="isCommunityManager"
+      value="Mes entreprises assignées" 
+      severity="info"
+      styleClass="text-sm px-3 py-2">
+      <i class="pi pi-building mr-2"></i>
+    </p-tag>
   </ng-template>
 
   <ng-template pTemplate="end">
@@ -203,8 +210,10 @@
                         pTooltip="Revalider l'entreprise" tooltipPosition="top" />
             </ng-container>
           </ng-container>
-          
-          <p-button icon="pi pi-trash" severity="danger" [rounded]="true" [outlined]="true" 
+          <p-button *ngIf="isCommunityManager" icon="pi pi-cog" [rounded]="true" [outlined]="true" 
+                    severity="success" size="small" (click)="gererEntreprise(entreprise)"
+                    pTooltip="Gérer cette entreprise" tooltipPosition="top" />
+          <p-button *canSee="['Administrateur']" icon="pi pi-trash" severity="danger" [rounded]="true" [outlined]="true" 
                     size="small" (click)="deleteEntreprise(entreprise)"
                     pTooltip="Supprimer" tooltipPosition="top" />
         </div>
@@ -364,10 +373,10 @@
   
   <ng-template pTemplate="header">
     <div class="dialog-header-custom">
-      <i class="pi pi-building text-2xl text-blue-600 mr-3"></i>
+      <i class="pi pi-building text-xl font-bold text-white/80"></i>
       <div>
-        <h2 class="text-xl font-bold m-0">{{ dialogHeader }}</h2>
-        <p class="text-sm text-gray-500 m-0 mt-1">
+        <h2 class="text-xl font-bold text-white/80">{{ dialogHeader }}</h2>
+        <p class="text-white/80 text-sm mt-0.5">
           {{ entreprise.id ? 'Modifiez les informations de l\'entreprise' : 'Créez votre compte entreprise et trouvez vos opportunités' }}
         </p>
       </div>
@@ -726,6 +735,7 @@
 ::ng-deep .entreprise-detail-dialog .p-dialog-header {
   padding: 0 !important;
   border: 0 !important;
+  
 }
 
 .ed-header {
@@ -857,9 +867,12 @@
 }
 
 .dialog-header-custom {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 12px;
+  background: blue;
+  border-radius: 12px 12px 12px 12px;
 }
 
 /* Container du formulaire */
@@ -985,7 +998,7 @@
   left: 12px;
   top: 50%;
   transform: translateY(-50%);
-  color: #9ca3af;
+  color: white;
   font-size: 14px;
 }
 

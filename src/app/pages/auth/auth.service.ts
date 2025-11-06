@@ -5,10 +5,14 @@ import { UserConnexion } from './connexion/userconnexion.model';
 import { BackendURL, LocalStorageFields } from '../../Share/const';
 import { RegisterCandidat, RegisterRecruteur } from './register/user.model';
 
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   accessToken?: string;
-  
+  private _entreprises: any[] = [];
+  private entreprisesSubject = new BehaviorSubject<any[]>([]);
+  public entreprises$: Observable<any[]> = this.entreprisesSubject.asObservable();
+
   /** Liste des noms de rôles (ex: ["Administrateur", "Recruteur"]) */
   private _rolesNames: string[] = [];
 
@@ -25,43 +29,44 @@ export class AuthService {
    * Initialise les données depuis le localStorage
    */
   private initializeFromStorage(): void {
-    // Token
-    this.accessToken = localStorage.getItem(LocalStorageFields.accessToken) ?? undefined;
+  // Token
+  this.accessToken = localStorage.getItem(LocalStorageFields.accessToken) ?? undefined;
 
-    // Rôles
-    const rolesJson = localStorage.getItem(LocalStorageFields.roles_name);
-    const singleRole = localStorage.getItem(LocalStorageFields.userRole);
-    
-    if (rolesJson) {
-      try {
-        this._rolesNames = JSON.parse(rolesJson) ?? [];
-      } catch {
-        this._rolesNames = [];
-      }
-    } else if (singleRole) {
-      this._rolesNames = [singleRole];
-      localStorage.setItem(LocalStorageFields.roles_name, JSON.stringify(this._rolesNames));
-      localStorage.removeItem(LocalStorageFields.userRole);
+  // Rôles
+  const rolesJson = localStorage.getItem(LocalStorageFields.roles_name);
+  const singleRole = localStorage.getItem(LocalStorageFields.userRole);
+  
+  if (rolesJson) {
+    try {
+      this._rolesNames = JSON.parse(rolesJson) ?? [];
+    } catch {
+      this._rolesNames = [];
     }
+  } else if (singleRole) {
+    this._rolesNames = [singleRole];
+    localStorage.setItem(LocalStorageFields.roles_name, JSON.stringify(this._rolesNames));
+    localStorage.removeItem(LocalStorageFields.userRole);
+  }
 
-    // User
-    const utilisateur = localStorage.getItem('utilisateur');
-    if (utilisateur) {
-      try {
-        const user = JSON.parse(utilisateur);
-        this.utilisateurConnecteSubject.next(user);
-        
-        // Si l'user a un role et qu'on n'a pas de rôles en mémoire
-        if (user?.role && !this._rolesNames.length) {
-          this._rolesNames = [user.role];
-          localStorage.setItem(LocalStorageFields.roles_name, JSON.stringify(this._rolesNames));
-        }
-      } catch {
-        this.utilisateurConnecteSubject.next(null);
+  // User
+  const utilisateur = localStorage.getItem('utilisateur');
+  if (utilisateur) {
+    try {
+      const user = JSON.parse(utilisateur);
+      this.utilisateurConnecteSubject.next(user);
+      
+      if (user?.role && !this._rolesNames.length) {
+        this._rolesNames = [user.role];
+        localStorage.setItem(LocalStorageFields.roles_name, JSON.stringify(this._rolesNames));
       }
+    } catch {
+      this.utilisateurConnecteSubject.next(null);
     }
   }
 
+  // ✅ NOUVEAU : Charger les entreprises
+  this.loadEntreprisesFromStorage();
+}
   // ================== INSCRIPTION ==================
 
   /**
@@ -191,7 +196,108 @@ export class AuthService {
     );
   }
 
-  
+  /**
+ * ✅ NOUVEAU : Récupère les entreprises gérables
+ */
+getEntreprises(): any[] {
+  return this._entreprises;
+}
+
+/**
+ * ✅ NOUVEAU : Met à jour les entreprises
+ */
+private setEntreprises(entreprises: any[]): void {
+  this._entreprises = entreprises || [];
+  localStorage.setItem('entreprises', JSON.stringify(this._entreprises));
+  this.entreprisesSubject.next(this._entreprises);
+  console.log('📍 Entreprises stockées:', this._entreprises.length);
+}
+
+/**
+ * ✅ NOUVEAU : Charge les entreprises depuis localStorage
+ */
+private loadEntreprisesFromStorage(): void {
+  const stored = localStorage.getItem('entreprises');
+  if (stored) {
+    try {
+      this._entreprises = JSON.parse(stored);
+      this.entreprisesSubject.next(this._entreprises);
+    } catch {
+      this._entreprises = [];
+    }
+  }
+}
+
+  // ================== RÉINITIALISATION MOT DE PASSE ==================
+
+  /**
+   * ✅ Demander la réinitialisation du mot de passe
+   * Envoie un email avec un lien de réinitialisation
+   */
+  forgotPassword(email: string): Observable<any> {
+    console.log('📧 Demande de réinitialisation pour:', email);
+    
+    return this.http.post(`${BackendURL}auth/forgot-password`, { email }).pipe(
+      tap(res => {
+        console.log('✅ Email de réinitialisation envoyé:', res);
+      }),
+      catchError(err => {
+        console.error('❌ Erreur forgot-password:', err);
+        console.error('  Status:', err.status);
+        console.error('  Message:', err.error?.message || err.message);
+        return throwError(() => err);
+      })
+    );
+  }
+
+  /**
+   * ✅ Réinitialiser le mot de passe avec le token
+   */
+  resetPassword(data: {
+    token: string;
+    email: string;
+    password: string;
+    password_confirmation: string;
+  }): Observable<any> {
+    console.log('🔐 Réinitialisation du mot de passe');
+    console.log('  - Email:', data.email);
+    console.log('  - Token:', data.token.substring(0, 20) + '...');
+    
+    return this.http.post(`${BackendURL}auth/reset-password`, data).pipe(
+      tap(res => {
+        console.log('✅ Mot de passe réinitialisé avec succès:', res);
+      }),
+      catchError(err => {
+        console.error('❌ Erreur reset-password:', err);
+        console.error('  Status:', err.status);
+        console.error('  Message:', err.error?.message || err.message);
+        console.error('  Errors:', err.error?.errors);
+        return throwError(() => err);
+      })
+    );
+  }
+
+  /**
+   * ✅ Vérifier si un token de réinitialisation est valide
+   * (Optionnel mais utile pour l'UX)
+   */
+  verifyToken(token: string, email: string): Observable<any> {
+    console.log('🔍 Vérification du token de réinitialisation');
+    console.log('  - Email:', email);
+    console.log('  - Token:', token.substring(0, 20) + '...');
+    
+    return this.http.post(`${BackendURL}auth/verify-reset-token`, { token, email }).pipe(
+      tap(res => {
+        console.log('✅ Token valide:', res);
+      }),
+      catchError(err => {
+        console.error('❌ Token invalide ou expiré:', err);
+        console.error('  Status:', err.status);
+        console.error('  Message:', err.error?.message || err.message);
+        return throwError(() => err);
+      })
+    );
+  }
 
   // ================== DÉCONNEXION ==================
 
@@ -199,18 +305,22 @@ export class AuthService {
    * Déconnexion utilisateur
    */
   logout(): void {
-    this.accessToken = undefined;
-    this._rolesNames = [];
-    
-    localStorage.removeItem(LocalStorageFields.accessToken);
-    localStorage.removeItem(LocalStorageFields.roles_name);
-    localStorage.removeItem(LocalStorageFields.userRole);
-    localStorage.removeItem('utilisateur');
-    
-    this.utilisateurConnecteSubject.next(null);
-    
-    console.log('👋 Déconnexion effectuée');
-  }
+  this.accessToken = undefined;
+  this._rolesNames = [];
+  this._entreprises = []; // ✅ NOUVEAU
+  
+  localStorage.removeItem(LocalStorageFields.accessToken);
+  localStorage.removeItem(LocalStorageFields.roles_name);
+  localStorage.removeItem(LocalStorageFields.userRole);
+  localStorage.removeItem('utilisateur');
+  localStorage.removeItem('entreprises'); // ✅ NOUVEAU
+  localStorage.removeItem('selected_entreprise_id'); // ✅ NOUVEAU
+  
+  this.utilisateurConnecteSubject.next(null);
+  this.entreprisesSubject.next([]); // ✅ NOUVEAU
+  
+  console.log('👋 Déconnexion effectuée');
+}
 
   // ================== INFORMATIONS UTILISATEUR ==================
 
@@ -391,6 +501,4 @@ export class AuthService {
     const userRoles = this._rolesNames.map(r => r.toLowerCase());
     return normalizedRoles.every(r => userRoles.includes(r));
   }
-
-  
 }

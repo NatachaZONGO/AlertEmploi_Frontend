@@ -1,19 +1,35 @@
 // src/app/pages/dashboard/dashboard.service.ts
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { map, Observable } from 'rxjs';
 import { BackendURL } from '../../Share/const';
 
 @Injectable({ providedIn: 'root' })
 export class DashboardService {
-  // Endpoint back qu'on crée plus bas
   private apiUrl = `${BackendURL.replace(/\/+$/, '')}/dashboard/stats`;
-
+  
   constructor(private http: HttpClient) {}
-
-  getStats(): Observable<any> {
+  
+  /**
+   * ✅ Récupère les statistiques du dashboard
+   * @param entrepriseId (optionnel) - Pour filtrer par entreprise (CM)
+   */
+  getStats(entrepriseId?: number): Observable<any> {
+    let params = new HttpParams();
+    
+    // ✅ Ajouter entreprise_id si fourni
+    if (entrepriseId) {
+      params = params.set('entreprise_id', entrepriseId.toString());
+      console.log('📊 Stats filtrées par entreprise:', entrepriseId);
+    }
+    
     return this.http
-      .get<any>(this.apiUrl, { headers: { Accept: 'application/json' } })
+      .get<any>(this.apiUrl, { 
+        headers: { Accept: 'application/json' },
+        params 
+      })
       .pipe(map(res => res?.data ?? res)); 
   }
+
+  
 }

@@ -41,6 +41,7 @@ import { BackendURL } from '../../Share/const';
 import { OffreCreateDialogComponent } from "../crud/offre/offre-create-dialog.component";
 import { AuthService } from '../auth/auth.service'; // ✅ AJOUTÉ
 import { ProfileService } from '../crud/profil/profil.service'; // ✅ AJOUTÉ
+import { FooterWidget } from './components/footerwidget';
 
 type CountryOption = { label: string; value: string; flag?: string; code: string };
 
@@ -86,7 +87,7 @@ type LMChoice = 'upload' | 'text' | 'none';
     StyleClassModule, DividerModule, CarouselModule, TagModule, DialogModule,
     ConfirmDialog, ToastModule, FormsModule, InputTextModule, TextareaModule,
     InputNumberModule, SelectModule, RadioButtonModule, CheckboxModule,
-    OffreCreateDialogComponent
+    OffreCreateDialogComponent, FooterWidget
   ],
   templateUrl: './landing.html',
 })

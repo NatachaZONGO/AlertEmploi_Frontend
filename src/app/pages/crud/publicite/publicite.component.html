@@ -262,52 +262,73 @@
           </div>
 
           <!-- Entreprise -->
-          <div class="form-field full-width">
-            <label for="entreprise" class="field-label">
-              Entreprise <span class="required">*</span>
-            </label>
-            
-            <!-- ✅ SI RECRUTEUR : Afficher en lecture seule -->
-            <div *ngIf="isRecruteur && entrepriseRecruteur" class="entreprise-readonly">
-              <div class="input-readonly-container">
-                <i class="pi pi-building text-blue-600 mr-2"></i>
-                <span class="font-semibold">{{ entrepriseRecruteur.nom_entreprise }}</span>
-                <p-tag value="Mon entreprise" severity="success" styleClass="ml-auto"></p-tag>
-              </div>
-              <small class="text-gray-500 text-xs mt-1">
-                <i class="pi pi-lock mr-1"></i>
-                Ce champ est automatiquement rempli avec votre entreprise
-              </small>
-            </div>
+<div class="form-field full-width">
+  <label for="entreprise" class="field-label">
+    Entreprise <span class="required">*</span>
+  </label>
+  
+  <!-- ✅ SI RECRUTEUR : Afficher en lecture seule -->
+  <div *ngIf="isRecruteur && entrepriseRecruteur" class="entreprise-readonly">
+    <div class="input-readonly-container">
+      <i class="pi pi-building text-blue-600 mr-2"></i>
+      <span class="font-semibold">{{ entrepriseRecruteur.nom_entreprise }}</span>
+      <p-tag value="Mon entreprise" severity="success" styleClass="ml-auto"></p-tag>
+    </div>
+    <small class="text-gray-500 text-xs mt-1">
+      <i class="pi pi-lock mr-1"></i>
+      Ce champ est automatiquement rempli avec votre entreprise
+    </small>
+  </div>
 
-            <!-- ✅ SI RECRUTEUR SANS ENTREPRISE : Afficher avertissement -->
-            <div *ngIf="isRecruteur && !entrepriseRecruteur" class="entreprise-warning">
-              <div class="warning-box">
-                <i class="pi pi-exclamation-triangle"></i>
-                <span>Aucune entreprise associée à votre compte. Veuillez contacter l'administrateur.</span>
-              </div>
-            </div>
+  <!-- ✅ SI CM : Afficher en lecture seule (entreprise sélectionnée) -->
+  <div *ngIf="isCommunityManager && entrepriseCM" class="entreprise-readonly">
+    <div class="input-readonly-container">
+      <i class="pi pi-building text-blue-600 mr-2"></i>
+      <span class="font-semibold">{{ entrepriseCM.nom_entreprise }}</span>
+      <p-tag value="Entreprise gérée" severity="info" styleClass="ml-auto"></p-tag>
+    </div>
+    <small class="text-gray-500 text-xs mt-1">
+      <i class="pi pi-lock mr-1"></i>
+      Publicité pour l'entreprise actuellement sélectionnée
+    </small>
+  </div>
 
-            <!-- ✅ SI ADMIN : Afficher le dropdown normal -->
-            <p-dropdown
-              *ngIf="isAdmin"
-              id="entreprise"
-              [options]="entreprises"
-              [(ngModel)]="publicite.entreprise_id"
-              optionLabel="nom_entreprise"
-              optionValue="id"
-              [filter]="true"
-              [showClear]="true"
-              placeholder="Sélectionner une entreprise"
-              styleClass="w-full"
-              [class.input-error]="submitted && !publicite.entreprise_id">
-            </p-dropdown>
-            
-            <!-- Message d'erreur -->
-            <small class="error-message" *ngIf="submitted && !publicite.entreprise_id && isAdmin">
-              L'entreprise est obligatoire
-            </small>
-          </div>
+  <!-- ✅ SI CM SANS ENTREPRISE : Afficher avertissement -->
+  <div *ngIf="isCommunityManager && !entrepriseCM" class="entreprise-warning">
+    <div class="warning-box">
+      <i class="pi pi-exclamation-triangle"></i>
+      <span>Aucune entreprise sélectionnée. Veuillez d'abord sélectionner une entreprise depuis la page "Entreprises".</span>
+    </div>
+  </div>
+
+  <!-- ✅ SI RECRUTEUR SANS ENTREPRISE : Afficher avertissement -->
+  <div *ngIf="isRecruteur && !entrepriseRecruteur" class="entreprise-warning">
+    <div class="warning-box">
+      <i class="pi pi-exclamation-triangle"></i>
+      <span>Aucune entreprise associée à votre compte. Veuillez contacter l'administrateur.</span>
+    </div>
+  </div>
+
+  <!-- ✅ SI ADMIN : Afficher le dropdown normal -->
+  <p-dropdown
+    *ngIf="isAdmin"
+    id="entreprise"
+    [options]="entreprises"
+    [(ngModel)]="publicite.entreprise_id"
+    optionLabel="nom_entreprise"
+    optionValue="id"
+    [filter]="true"
+    [showClear]="true"
+    placeholder="Sélectionner une entreprise"
+    styleClass="w-full"
+    [class.input-error]="submitted && !publicite.entreprise_id">
+  </p-dropdown>
+  
+  <!-- Message d'erreur -->
+  <small class="error-message" *ngIf="submitted && !publicite.entreprise_id && isAdmin">
+    L'entreprise est obligatoire
+  </small>
+</div>
 
           <!-- Type de média + Lien externe -->
           <div class="form-field">
@@ -1543,4 +1564,51 @@
 .text-gray-400 { color: #9ca3af; }
 .text-gray-500 { color: #6b7280; }
 .text-blue-600 { color: #2563eb; }
+
+/* Entreprise en lecture seule */
+.entreprise-readonly {
+  width: 100%;
+}
+
+.input-readonly-container {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f3f4f6;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  gap: 12px;
+}
+
+.input-readonly-container i {
+  font-size: 1.25rem;
+}
+
+.input-readonly-container span {
+  flex: 1;
+  color: #111827;
+}
+
+/* Warning box */
+.entreprise-warning {
+  width: 100%;
+}
+
+.warning-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #fef3c7;
+  border: 2px solid #fbbf24;
+  border-radius: 8px;
+  color: #92400e;
+  font-size: 14px;
+}
+
+.warning-box i {
+  font-size: 1.25rem;
+  color: #f59e0b;
+  flex-shrink: 0;
+}
 </style>
