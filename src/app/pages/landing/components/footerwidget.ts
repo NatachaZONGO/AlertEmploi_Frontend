@@ -78,53 +78,16 @@ import { Router, RouterModule } from '@angular/router';
             </ul>
           </div>
 
-          <!-- Colonne 3: Ressources & Support -->
-          <div class="footer-column">
-            <h3 class="footer-title">Ressources</h3>
-            <ul class="footer-links">
-              <li>
-                <a routerLink="/conseils" class="footer-link" routerLinkActive="active">
-                  <i class="pi pi-lightbulb"></i>
-                  <span>Conseils carrière</span>
-                </a>
-              </li>
-              <li>
-                <a href="mailto:contact@example.com" class="footer-link">
-                  <i class="pi pi-envelope"></i>
-                  <span>Nous contacter</span>
-                </a>
-              </li>
-              <li>
-                <a routerLink="/aide" class="footer-link">
-                  <i class="pi pi-question-circle"></i>
-                  <span>Centre d'aide</span>
-                </a>
-              </li>
-              <li>
-                <a routerLink="/cgu" class="footer-link">
-                  <i class="pi pi-file"></i>
-                  <span>Conditions d'utilisation</span>
-                </a>
-              </li>
-              <li>
-                <a routerLink="/confidentialite" class="footer-link">
-                  <i class="pi pi-shield"></i>
-                  <span>Politique de confidentialité</span>
-                </a>
-              </li>
-            </ul>
-          </div>
-
           <!-- Colonne 4: Contact -->
           <div class="footer-column">
             <h3 class="footer-title">Besoin d'aide ?</h3>
             <p class="footer-contact">
               <strong>Appelez-nous :</strong>
-              <a href="tel:+22671775858" class="phone-link">+226 71 77 58 58</a>
+              <a href="tel:+22656573131" class="phone-link">+226 56 57 31 31 / 50 13 31 31</a>
             </p>
             <p class="footer-contact">
               <strong>Email :</strong>
-              <a href="mailto:contact@example.com" class="email-link">contact.com</a>
+              <a href="mailto:lahcom20@gmail.com" class="email-link">lahcom20&#64;gmail.com</a>
             </p>
             <p class="footer-text">
               <i class="pi pi-clock"></i>
@@ -133,7 +96,7 @@ import { Router, RouterModule } from '@angular/router';
             </p>
             <div class="stats-footer">
               <div class="stat-footer">
-                <span class="stat-number">500+</span>
+                <span class="stat-number">100+</span>
                 <span class="stat-label">Offres actives</span>
               </div>
               <div class="stat-footer">
@@ -151,13 +114,7 @@ import { Router, RouterModule } from '@angular/router';
           <p class="copyright">
             Copyright © {{ currentYear }} <strong>JobPlatform</strong> - Tous droits réservés
           </p>
-          <div class="footer-bottom-links">
-            <a routerLink="/mentions-legales" class="bottom-link">Mentions légales</a>
-            <span class="separator">•</span>
-            <a routerLink="/confidentialite" class="bottom-link">Confidentialité</a>
-            <span class="separator">•</span>
-            <a routerLink="/cookies" class="bottom-link">Cookies</a>
-          </div>
+        
           <p class="powered-by">
             Développé avec <i class="pi pi-heart"></i> par <span class="brand">Tacha</span>
           </p>

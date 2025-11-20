@@ -71,7 +71,7 @@
           <div class="text-lg font-semibold">{{ active.titre || 'Notification' }}</div>
           <div class="text-xs text-gray-500">
             Créée: {{ active.date_creation | date:'short' }}
-            <span *ngIf="active?.date_envoi"> • Envoyée: {{ active.date_envoi | date:'short' }}</span>
+            <span *ngIf="active.date_envoi"> • Envoyée: {{ active.date_envoi | date:'short' }}</span>
           </div>
         </div>
         

@@ -143,58 +143,96 @@ export class PaysComponent implements OnInit {
     }
 }
 
-   private buildPayload(): FormData {
-  const fd = new FormData();
-  fd.append('nom', this.currentPays.nom);
-  fd.append('code', (this.currentPays.code || this.currentPays.code || '').toUpperCase());
-  if (this.currentPays.indicatif_tel) fd.append('indicatif_tel', this.currentPays.indicatif_tel);
-  fd.append('isActive', (this.currentPays.isActive ?? this.currentPays.isActive ?? true) ? '1' : '0');
-
-  if (this.flagSource === 'upload' && this.fichierUpload) {
-    fd.append('flag', this.fichierUpload);         // ✅ fichier
-  } else if (this.flagSource === 'url') {
-    fd.append('flag', this.currentPays.flagImage || ''); // ✅ URL ou '' pour effacer
-  }
-  return fd;
-}
 
 sauvegarderPays() {
   this.submitted = true;
-  if (!this.currentPays.nom?.trim() || !this.currentPays.code?.trim()) {
-    this.afficherErreur('Le nom et le code sont obligatoires');
+
+  // ✅ VALIDATION
+  if (!this.currentPays.nom?.trim()) {
+    this.afficherErreur('Le nom du pays est obligatoire');
     return;
   }
 
+  if (!this.currentPays.code?.trim()) {
+    this.afficherErreur('Le code ISO est obligatoire');
+    return;
+  }
+
+  // ✅ CONSTRUIRE LE FORMDATA CORRECTEMENT
   const fd = new FormData();
-  fd.append('nom', this.currentPays.nom);
-  fd.append('code_iso', this.currentPays.code.toUpperCase());
-  if (this.currentPays.isActive !== undefined) {
-    fd.append('is_active', this.currentPays.isActive ? '1' : '0');
-  }
+  
+  // Champs obligatoires
+  fd.append('nom', this.currentPays.nom.trim());
+  fd.append('code_iso', this.currentPays.code.trim().toUpperCase());
+  
+  // Champs optionnels
   if (this.currentPays.indicatif_tel) {
-    fd.append('indicatif_tel', this.currentPays.indicatif_tel);
+    fd.append('indicatif_tel', this.currentPays.indicatif_tel.trim());
   }
-
-  // --- Drapeau : fichier OU URL dans la même clé 'flag'
+  
+  // Statut (1 ou 0)
+  fd.append('is_active', this.currentPays.isActive ? '1' : '0');
+  
+  // ✅ GESTION DU DRAPEAU
   if (this.flagSource === 'upload' && this.fichierUpload) {
-    fd.append('flag', this.fichierUpload);
-  } else if (this.flagSource === 'url' && this.currentPays.flagImage) {
-    fd.append('flag', this.currentPays.flagImage);
-  } else if (this.currentPays.flagImage === '') {
-    fd.append('flag', ''); // effacer
+    // Fichier uploadé
+    fd.append('flag', this.fichierUpload, this.fichierUpload.name);
+    console.log('📤 Drapeau (fichier):', this.fichierUpload.name);
+  } else if (this.flagSource === 'url' && this.currentPays.flagImage?.trim()) {
+    // URL du drapeau
+    fd.append('flag', this.currentPays.flagImage.trim());
+    console.log('📤 Drapeau (URL):', this.currentPays.flagImage);
   }
-
+  
+  // ✅ LOGS POUR DÉBOGUER
+  console.log('📤 FormData à envoyer :');
+  fd.forEach((value, key) => {
+    if (value instanceof File) {
+      console.log(`  ${key}: [File] ${value.name} (${value.size} bytes)`);
+    } else {
+      console.log(`  ${key}: ${value}`);
+    }
+  });
+  
+  // ✅ REQUÊTE API
   let req$;
   if (this.currentPays.id) {
-    fd.append('_method', 'PUT'); // spoof pour Laravel
-    req$ = this.paysService.updatePays(String(this.currentPays.id), fd);
+    // UPDATE
+    fd.append('_method', 'PUT');
+    req$ = this.paysService.updatePays(this.currentPays.id.toString(), fd);
+    console.log('🔄 UPDATE pays ID:', this.currentPays.id);
   } else {
+    // CREATE
     req$ = this.paysService.createPays(fd);
+    console.log('➕ CREATE nouveau pays');
   }
-
+  
   req$.subscribe({
-    next: () => { this.afficherSucces('Pays sauvegardé'); this.chargerPays(); this.paysDialog = false; },
-    error: () => this.afficherErreur('Erreur de sauvegarde')
+    next: (response) => {
+      console.log('✅ Réponse serveur:', response);
+      this.afficherSucces(
+        this.currentPays.id 
+          ? 'Pays mis à jour avec succès' 
+          : 'Pays créé avec succès'
+      );
+      this.chargerPays();
+      this.fermerDialog();
+    },
+    error: (error) => {
+      console.error('❌ Erreur complète:', error);
+      console.error('  - Status:', error.status);
+      console.error('  - Error:', error.error);
+      
+      const message = error.error?.message 
+        || error.error?.errors 
+        || 'Erreur lors de la sauvegarde';
+      
+      this.afficherErreur(
+        typeof message === 'object' 
+          ? JSON.stringify(message) 
+          : message
+      );
+    }
   });
 }
 

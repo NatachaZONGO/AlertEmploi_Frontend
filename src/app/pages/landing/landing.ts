@@ -123,6 +123,8 @@ export class Landing implements OnInit {
   onOffreSaved(){ this.loadOffres(); }
   onOfferCreated(_o: any) { this.loadOffres(); }
 
+  pubDialogVisible = false;
+  currentPub: any = null;
   // Vitrines
   recentOffers: Offer[] = [];
   featuredJobs: Offer[] = [];
@@ -235,6 +237,12 @@ export class Landing implements OnInit {
         }
       });
     }
+  }
+
+   openPubDialog(pub: any): void {
+    this.currentPub = pub;
+    this.pubDialogVisible = true;
+    console.log('📢 Publicité ouverte:', pub);
   }
 
   /**

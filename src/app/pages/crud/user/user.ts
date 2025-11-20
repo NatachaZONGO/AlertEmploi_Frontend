@@ -69,9 +69,10 @@ export class UserComponent implements OnInit { // Corrigé le nom de la classe (
   submitted = false;
   previewPhotoUrl?: string | null;
   userDetailsDialog = false;
+  isEditMode: boolean = false;
   selectedUserForDetails: any = null;
   loading = signal(false);
-
+  
   entrepriseAssignmentDialog = false;
   selectedUserForEntreprises: UiUser | null = null;
   assignedEntreprises: any[] = [];
@@ -110,37 +111,39 @@ export class UserComponent implements OnInit { // Corrigé le nom de la classe (
   }
 
   /** Charger les rôles depuis l'API */
-  loadRoles() {
-    this.roleService.getRoles().subscribe({
-      next: (roles: Role[]) => {
-        console.log('Rôles chargés:', roles);
-        this.roles = roles.map(role => ({
+ loadRoles() {
+  this.roleService.getRoles().subscribe({
+    next: (roles: Role[]) => {
+      console.log('✅ Rôles chargés depuis l\'API:', roles);
+      
+      this.roles = roles.map(role => ({
+        label: role.nom || '',
+        value: Number(role.id) || 0
+      }));
+      
+      console.log('✅ Rôles formatés pour le dropdown:', this.roles); // ← LOG
+      
+      this.roleFilterOptions = [
+        { label: 'Tous les rôles', value: null },
+        ...roles.map(role => ({
           label: role.nom || '',
-          value: Number(role.id) || 0
-        }));
-        
-        this.roleFilterOptions = [
-          { label: 'Tous les rôles', value: null },
-          ...roles.map(role => ({
-            label: role.nom || '',
-            value: role.nom || ''
-          }))
-        ];
-        
-        console.log('Rôles formatés:', this.roles);
-        this.cdRef.detectChanges();
-      },
-      error: err => {
-        console.error('Erreur chargement rôles:', err);
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Erreur',
-          detail: 'Impossible de charger les rôles',
-          life: 3000
-        });
-      }
-    });
-  }
+          value: role.nom || ''
+        }))
+      ];
+      
+      this.cdRef.detectChanges();
+    },
+    error: err => {
+      console.error('❌ Erreur chargement rôles:', err);
+      this.messageService.add({
+        severity: 'error',
+        summary: 'Erreur',
+        detail: 'Impossible de charger les rôles',
+        life: 3000
+      });
+    }
+  });
+}
 
   /** Récupération users depuis l'API (réponse paginée Laravel) */
   loadUsers() {
@@ -212,32 +215,54 @@ loadAllEntreprises(): void {
     });
   }
 
-  openNew() {
-    this.user = { statut: 'actif' }; // Pas de rôle par défaut
-    this.previewPhotoUrl = undefined;
-    this.submitted = false;
-    this.userDialog = true;
-  }
+openNew() {
+  console.log('🆕 Ouverture en mode CRÉATION');
 
-  editUser(user: UiUser) {
-    console.log('📝 Édition utilisateur:', user);
-    console.log('Rôles de l\'utilisateur:', user.roles);
-    
-    this.user = { 
-      ...user,
-      // ✅ Convertir les rôles en tableau d'IDs
-      selectedRoleIds: user.roles && Array.isArray(user.roles)
-        ? user.roles.map((role: any) => Number(role.id))
-        : [],
-      photo: typeof user.photo === 'string' ? user.photo : undefined
-    };
-    
-    console.log('✅ Rôles sélectionnés:', this.user.selectedRoleIds);
-    
-    this.previewPhotoUrl = undefined;
-    this.submitted = false;
-    this.userDialog = true;
-  }
+  this.isEditMode = false;
+
+  this.user = {
+    id: undefined,
+    nom: '',
+    prenom: '',
+    email: '',
+    telephone: '',
+    statut: 'actif',
+    role_id: undefined, // ✅ UN SEUL rôle
+    roles: [],
+    password: ''
+  };
+
+  console.log('📋 Rôles disponibles:', this.roles);
+
+  this.previewPhotoUrl = undefined;
+  this.submitted = false;
+  this.userDialog = true;
+}
+
+
+
+ editUser(user: UiUser) {
+  console.log('📝 Ouverture en mode MODIFICATION', user);
+
+  this.isEditMode = true;
+
+  // ✅ Récupérer le premier rôle (puisqu'on n'en veut qu'un seul)
+  const roleId = user.roles && user.roles.length > 0 
+    ? Number(user.roles[0].id) 
+    : undefined;
+
+  this.user = {
+    ...user,
+    role_id: roleId, // ✅ UN SEUL rôle
+    photo: typeof user.photo === 'string' ? user.photo : undefined
+  };
+
+  console.log('✅ user.role_id:', this.user.role_id);
+
+  this.previewPhotoUrl = undefined;
+  this.submitted = false;
+  this.userDialog = true;
+}
 
   deleteSelectedUsers() {
     this.confirmationService.confirm({
@@ -301,12 +326,15 @@ loadAllEntreprises(): void {
 saveUser() {
   this.submitted = true;
 
-  // Validation
-  if (!this.user.selectedRoleIds || this.user.selectedRoleIds.length === 0) {
+  const isEdit = !!this.user.id;
+
+  // ✅ VALIDATION COMMUNE (création ET modification)
+  if (!this.user.role_id) {
+    console.error('❌ ERREUR : user.role_id est vide !', this.user.role_id);
     this.messageService.add({
       severity: 'error',
       summary: 'Erreur',
-      detail: 'Au moins un rôle doit être sélectionné',
+      detail: 'Le rôle est obligatoire',
       life: 3000
     });
     return;
@@ -322,27 +350,18 @@ saveUser() {
     return;
   }
 
-  const payload: any = {
-    id: this.user.id,
-    statut: this.user.statut,
-    role_ids: this.user.selectedRoleIds
-  };
+  if (isEdit) {
+    // ✅ MODE ÉDITION
+    const payload: any = {
+      id: this.user.id,
+      statut: this.user.statut,
+      role_id: this.user.role_id // ✅ UN SEUL rôle
+    };
 
-  // ✅ LOG AVANT ENVOI
-  console.group('📤 ENVOI AU BACKEND');
-  console.log('Payload complet:', payload);
-  console.log('role_ids:', payload.role_ids);
-  console.log('Type de role_ids:', Array.isArray(payload.role_ids) ? 'Array' : typeof payload.role_ids);
-  console.groupEnd();
+    console.log('📤 UPDATE Payload:', payload);
 
-  if (this.user.id) {
     this.userService.updateUser(payload).subscribe({
       next: (response) => {
-        console.group('📥 RÉPONSE DU BACKEND');
-        console.log('Response complète:', response);
-        console.log('Rôles retournés:', response?.data?.roles);
-        console.groupEnd();
-        
         this.messageService.add({
           severity: 'success',
           summary: 'Succès',
@@ -353,14 +372,61 @@ saveUser() {
         this.hideDialog();
       },
       error: err => {
-        console.error('❌ Erreur saveUser:', err);
+        console.error('❌ Erreur update:', err);
         this.messageService.add({
           severity: 'error',
           summary: 'Erreur',
           detail: err.error?.message || 'Erreur lors de la mise à jour',
           life: 3000
         });
+      }
+    });
+
+  } else {
+    // ✅ MODE CRÉATION
+    if (!this.user.nom || !this.user.prenom || !this.user.email || !this.user.password) {
+      this.messageService.add({
+        severity: 'error',
+        summary: 'Erreur',
+        detail: 'Veuillez remplir tous les champs obligatoires',
+        life: 3000
+      });
+      return;
+    }
+
+    const payload: any = {
+      nom: this.user.nom,
+      prenom: this.user.prenom,
+      email: this.user.email,
+      password: this.user.password,
+      telephone: this.user.telephone || null,
+      statut: this.user.statut,
+      role_id: this.user.role_id // ✅ UN SEUL rôle
+    };
+
+    console.log('📤 CREATE Payload:', payload);
+
+    this.userService.createUser(payload).subscribe({
+      next: (response) => {
+        console.log('✅ SUCCÈS:', response);
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Succès',
+          detail: 'Utilisateur créé avec succès !',
+          life: 3000
+        });
+        this.loadUsers();
+        this.hideDialog();
       },
+      error: err => {
+        console.error('❌ ERREUR:', err);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Erreur',
+          detail: err.error?.message || 'Erreur lors de la création',
+          life: 3000
+        });
+      }
     });
   }
 }
@@ -372,14 +438,16 @@ saveUser() {
 
   /** Nettoyer l'URL de prévisualisation lors de la fermeture du dialog */
   hideDialog() {
-    this.userDialog = false;
-    this.submitted = false;
-    // Nettoyer l'URL de prévisualisation pour éviter les fuites mémoire
-    if (this.previewPhotoUrl) {
-      URL.revokeObjectURL(this.previewPhotoUrl);
-      this.previewPhotoUrl = undefined;
-    }
+  this.userDialog = false;
+  this.submitted = false;
+  this.isEditMode = false; // ✅ on réinitialise
+
+  if (this.previewPhotoUrl) {
+    URL.revokeObjectURL(this.previewPhotoUrl);
+    this.previewPhotoUrl = undefined;
   }
+}
+
 
   onGlobalFilter(table: Table, event: Event) {
     table.filterGlobal((event.target as HTMLInputElement).value, 'contains');

@@ -1,12 +1,11 @@
 // src/app/pages/auth/access.interceptor.ts
 import { HttpEvent, HttpHandlerFn, HttpRequest, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { catchError, Observable, throwError } from 'rxjs';
+import { catchError, Observable, throwError, timeout, TimeoutError } from 'rxjs';
 import { Router } from '@angular/router';
 import { AuthService } from './auth.service';
 import { BackendURL, LocalStorageFields } from '../../Share/const';
 import { EntrepriseService } from '../crud/entreprise/entreprise.service';
-
 
 // ===== ENDPOINTS PUBLICS (SANS TOKEN) =====
 const PUBLIC_API_ENDPOINTS = [
@@ -18,8 +17,7 @@ const PUBLIC_API_ENDPOINTS = [
   '/auth/reset-password',
   '/auth/verify-reset-token',
   '/categories',
-  '/pays',
-  '/conseils',
+  // ✅ /pays et /conseils RETIRÉS (nécessitent authentification)
 ];
 
 function isApiUrl(url: string): boolean {
@@ -27,19 +25,13 @@ function isApiUrl(url: string): boolean {
   return url.startsWith(base);
 }
 
-// ✅ Vérifier si c'est une offre publique
 function isPublicOffreEndpoint(path: string): boolean {
-  // /offres ou /offres/ (liste) → PUBLIC
   if (path === '/offres' || path === '/offres/') {
     return true;
   }
-  
-  // /offres/123 (détail avec ID numérique uniquement) → PUBLIC
   if (/^\/offres\/\d+\/?$/.test(path)) {
     return true;
   }
-  
-  // Tout le reste (/offres/mes-offres, /offres/search, etc.) → PROTÉGÉ
   return false;
 }
 
@@ -47,7 +39,6 @@ function isPublicEndpoint(url: string): boolean {
   const base = String(BackendURL).replace(/\/+$/, '');
   const path = url.replace(base, '');
   
-  // Vérifier les endpoints standards publics
   const isStandardPublic = PUBLIC_API_ENDPOINTS.some(endpoint => {
     return path === endpoint || path.startsWith(endpoint);
   });
@@ -56,7 +47,6 @@ function isPublicEndpoint(url: string): boolean {
     return true;
   }
   
-  // Vérification spécifique pour les offres
   return isPublicOffreEndpoint(path);
 }
 
@@ -81,28 +71,24 @@ function getToken(auth: any): string | undefined {
   return undefined;
 }
 
-// ✅ NOUVELLE FONCTION : Déterminer si on doit ajouter entreprise_id
 function shouldAddEntrepriseId(url: string, method: string): boolean {
   const base = String(BackendURL).replace(/\/+$/, '');
   const path = url.replace(base, '');
   
-  // NE PAS ajouter entreprise_id pour ces endpoints
   const excludedPaths = [
     '/auth/',
     '/categories',
     '/pays',
     '/conseils',
-    '/community/entreprises', // Le CM récupère ses entreprises
+    '/community/entreprises',
     '/profile',
     '/users/'
   ];
   
-  // Si l'URL est dans les exclusions, ne pas ajouter entreprise_id
   if (excludedPaths.some(excluded => path.startsWith(excluded))) {
     return false;
   }
   
-  // Endpoints qui ont besoin de entreprise_id
   const needsEntrepriseId = [
     '/offres',
     '/candidatures',
@@ -110,7 +96,6 @@ function shouldAddEntrepriseId(url: string, method: string): boolean {
     '/mon-entreprise'
   ];
   
-  // Vérifier si l'URL correspond à un de ces endpoints
   return needsEntrepriseId.some(endpoint => path.startsWith(endpoint));
 }
 
@@ -119,34 +104,41 @@ export function accessInterceptor(
   next: HttpHandlerFn
 ): Observable<HttpEvent<unknown>> {
   const authService = inject(AuthService) as any;
-  const entrepriseService = inject(EntrepriseService); // ✅ INJECTION DU SERVICE
+  const entrepriseService = inject(EntrepriseService);
   const router = inject(Router);
 
   console.log('🔄 Interceptor - URL:', req.url);
 
-  // 1) Si URL non-API, laisser passer sans modification
+  // 1) Si URL non-API, laisser passer
   if (!isApiUrl(req.url)) {
     console.log('  ✅ Non-API, laisse passer');
     return next(req);
   }
 
-  // 2) Si endpoint PUBLIC, laisser passer SANS token
+  // 2) Détecter FormData dès le début
+  const isFormData = req.body instanceof FormData;
+  console.log('  📦 Type de contenu:', isFormData ? 'FormData' : 'JSON');
+
+  // 3) Si endpoint PUBLIC
   if (isPublicEndpoint(req.url)) {
     console.log('  ✅ Endpoint public, laisse passer sans token');
-    const publicReq = req.clone({
-      setHeaders: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json'
-      }
-    });
+    
+    const headers: any = {
+      Accept: 'application/json'
+    };
+    
+    if (!isFormData) {
+      headers['Content-Type'] = 'application/json';
+    }
+    
+    const publicReq = req.clone({ setHeaders: headers });
     return next(publicReq);
   }
 
-  // 3) Endpoint PROTÉGÉ : récupérer le token
+  // 4) Endpoint PROTÉGÉ : récupérer le token
   const token = getToken(authService);
   console.log('  🔐 Endpoint protégé - Token présent:', !!token);
 
-  // 4) Si pas de token sur endpoint protégé -> erreur
   if (!token) {
     console.warn('  ⚠️ Pas de token pour endpoint protégé');
     
@@ -161,11 +153,9 @@ export function accessInterceptor(
     return throwError(() => new Error('Token requis pour cette requête'));
   }
 
-  // ✅ 5) NOUVEAU : Ajouter entreprise_id si nécessaire
+  // 5) Ajouter entreprise_id si nécessaire
   let modifiedReq = req;
   const selectedEntrepriseId = entrepriseService.getSelectedEntrepriseId();
-  
-  // Vérifier si l'utilisateur est CM ou Recruteur
   const userRole = authService.getCurrentUserRole();
   const needsEntrepriseId = userRole && (
     userRole.toLowerCase() === 'community_manager' || 
@@ -175,7 +165,6 @@ export function accessInterceptor(
   if (needsEntrepriseId && selectedEntrepriseId && shouldAddEntrepriseId(req.url, req.method)) {
     console.log('  🏢 Ajout entreprise_id:', selectedEntrepriseId);
     
-    // Pour GET : ajouter en query param
     if (req.method === 'GET') {
       const url = new URL(req.url);
       if (!url.searchParams.has('entreprise_id')) {
@@ -184,10 +173,8 @@ export function accessInterceptor(
         console.log('    ✅ Ajouté dans query params');
       }
     } 
-    // Pour POST/PUT/PATCH : ajouter dans le body
     else if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
       if (req.body instanceof FormData) {
-        // FormData : dupliquer et ajouter
         const formData = new FormData();
         (req.body as FormData).forEach((value, key) => {
           formData.append(key, value);
@@ -198,7 +185,6 @@ export function accessInterceptor(
           console.log('    ✅ Ajouté dans FormData');
         }
       } else if (typeof req.body === 'object' && req.body !== null) {
-        // JSON : cloner et ajouter
         const body = { ...req.body } as any;
         if (!body.hasOwnProperty('entreprise_id')) {
           body['entreprise_id'] = selectedEntrepriseId;
@@ -209,10 +195,8 @@ export function accessInterceptor(
     }
   }
 
-  // 6) Détecter FormData
-  const isFormData = modifiedReq.body instanceof FormData;
-  
-  console.log('  📦 Type de contenu:', isFormData ? 'FormData (fichier)' : 'JSON');
+  // 6) Recalculer isFormData après modification
+  const finalIsFormData = modifiedReq.body instanceof FormData;
 
   // 7) Construire les headers selon le type
   const headers: any = {
@@ -220,24 +204,51 @@ export function accessInterceptor(
     Accept: 'application/json'
   };
 
-  // NE PAS ajouter Content-Type si FormData
-  if (!isFormData) {
+  if (!finalIsFormData) {
     headers['Content-Type'] = 'application/json';
   }
 
   const cloned = modifiedReq.clone({ setHeaders: headers });
 
+  // ✅ 7.5) DÉFINIR LE TIMEOUT SELON LE TYPE DE REQUÊTE
+  const timeoutDuration = finalIsFormData ? 180000 : 30000; // 180s pour FormData, 30s pour JSON
+  
   console.log('  ✅ Requête avec token envoyée');
-  if (isFormData) {
-    console.log('  🎯 Headers (FormData):', ['Authorization: Bearer ***', 'Accept: application/json']);
+  if (finalIsFormData) {
+    console.log('  🎯 FormData détecté - Timeout:', timeoutDuration / 1000, 'secondes');
   }
 
-  // 8) Gestion centralisée des erreurs
+  // 8) Gestion centralisée des erreurs AVEC TIMEOUT
   return next(cloned).pipe(
+    timeout(timeoutDuration), // ✅ TIMEOUT AJOUTÉ
     catchError((error: any) => {
+      // ✅ GESTION SPÉCIFIQUE DU TIMEOUT
+      if (error instanceof TimeoutError || error.name === 'TimeoutError') {
+        console.error('⏱️ TIMEOUT : La requête a pris trop de temps');
+        return throwError(() => ({
+          name: 'TimeoutError',
+          message: 'La requête a expiré. Le fichier est peut-être trop volumineux ou la connexion trop lente.',
+          status: 0,
+          error: 'Timeout'
+        }));
+      }
+      
+      // ✅ GESTION DES ERREURS HTTP
       if (error instanceof HttpErrorResponse) {
         console.error('❌ Erreur HTTP:', error.status, error.message);
         
+        // Erreur réseau (status 0)
+        if (error.status === 0) {
+          console.error('🚨 Erreur réseau ou serveur inaccessible');
+          return throwError(() => ({
+            name: 'NetworkError',
+            message: 'Impossible de joindre le serveur. Vérifiez la taille du fichier et votre connexion.',
+            status: 0,
+            error: error
+          }));
+        }
+        
+        // Erreur 401 - Non authentifié
         if (error.status === 401) {
           console.log('  🚪 401 - Déconnexion et redirection');
           try { 
@@ -247,11 +258,24 @@ export function accessInterceptor(
           }
           localStorage.clear();
           router.navigateByUrl('/connexion');
-        } else if (error.status === 403) {
+        } 
+        // Erreur 403 - Accès refusé
+        else if (error.status === 403) {
           console.log('  🚫 403 - Accès refusé');
           router.navigate(['/acces-refuse']);
         }
+        // Erreur 413 - Payload trop large
+        else if (error.status === 413) {
+          console.error('📦 413 - Fichier trop volumineux');
+          return throwError(() => ({
+            name: 'PayloadTooLarge',
+            message: 'Le fichier est trop volumineux. Maximum : 100 Mo',
+            status: 413,
+            error: error
+          }));
+        }
       }
+      
       return throwError(() => error);
     })
   );

@@ -17,7 +17,6 @@ export class UserService {
   constructor(private http: HttpClient, private router: Router) {}
 
   // --------------------- ADMIN USERS ---------------------
-  
   getUsers(params?: Record<string, any>): Observable<any> {
     let httpParams = new HttpParams();
     if (params) {
@@ -60,38 +59,36 @@ export class UserService {
     return this.http.post(this.usersUrl, body, options);
   }
 
-  updateUser(userData: any): Observable<any> {
-    console.log('🔧 UserService.updateUser() appelé');
-    console.log('  📦 Données reçues:', userData);
-    
-    if (!userData.id) {
-      throw new Error('❌ ID utilisateur manquant');
-    }
-    
-    const url = `${this.usersUrl}/${userData.id}`;
-    console.log('  🌐 URL:', url);
-    
-    // ✅ Construire le payload à envoyer (SANS l'ID dans le body)
-    const payload = {
-      statut: userData.statut,
-      role_ids: userData.role_ids  // ✅ IMPORTANT : Envoyer role_ids
-    };
-    
-    console.log('  📤 Payload envoyé:', payload);
-    console.log('  📋 role_ids:', payload.role_ids);
-    
-    const headers = new HttpHeaders({
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    });
-    
-    // ✅ Envoyer le payload (pas userData complet)
-    return this.http.put(url, payload, { headers }).pipe(
-      tap(response => {
-        console.log('✅ Réponse du serveur:', response);
-      })
-    );
+ updateUser(userData: any): Observable<any> {
+  console.log('🔧 UserService.updateUser() appelé');
+  console.log('  📦 Données reçues:', userData);
+  
+  if (!userData.id) {
+    throw new Error('❌ ID utilisateur manquant');
   }
+  
+  const url = `${this.usersUrl}/${userData.id}`;
+  console.log('  🌐 URL:', url);
+  
+  // ✅ Construire le payload (UN SEUL rôle)
+  const payload = {
+    statut: userData.statut,
+    role_id: userData.role_id  // ✅ UN SEUL rôle (pas role_ids)
+  };
+  
+  console.log('  📤 Payload envoyé:', payload);
+  
+  const headers = new HttpHeaders({
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  });
+  
+  return this.http.put(url, payload, { headers }).pipe(
+    tap(response => {
+      console.log('✅ Réponse du serveur:', response);
+    })
+  );
+}
 
   deleteUser(id: number): Observable<void> {
     return this.http.delete<void>(`${this.usersUrl}/${id}`);

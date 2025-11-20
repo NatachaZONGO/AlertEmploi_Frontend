@@ -12,6 +12,7 @@ import { PublishOffreComponent } from './app/pages/landing/components/publish-of
 import { authGuard } from './app/pages/auth/auth.guard';
 import { ForgotPasswordComponent } from './app/pages/auth/forgot-password/forgot-password.component';
 import { ResetPasswordComponent } from './app/pages/auth/reset-password/reset-password.component';
+import { AboutComponent } from './app/pages/about/about.component';
 
 export const appRoutes: Routes = [
   { path: '', component: Landing },
@@ -52,6 +53,11 @@ export const appRoutes: Routes = [
   { 
     path: 'suivre-candidature', 
     component: SuiviCandidatureComponent,
+  },
+
+  {
+    path: 'about',
+    component: AboutComponent
   },
 
   { 

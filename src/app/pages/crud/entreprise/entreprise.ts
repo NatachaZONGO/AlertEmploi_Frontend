@@ -30,6 +30,7 @@ import { PaysDropdownComponent } from '../../../Share/pays-utils/pays-dropdown.c
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { EntrepriseContextService } from './entreprise-context.service';
+import { CanSeeDirective } from '../../../Share/can_see/can_see.directive';
 
 @Component({
   selector: 'app-entreprise',
@@ -56,9 +57,10 @@ import { EntrepriseContextService } from './entreprise-context.service';
     FileUploadModule,
     TagModule,
     DropdownModule,
-    PaysDropdownComponent
+    PaysDropdownComponent,
+    CanSeeDirective,
   ],
-  providers: [ConfirmationService, MessageService]
+  providers: [ConfirmationService, MessageService,]
 })
 export class EntrepriseComponent implements OnInit {
   // Signaux pour la réactivité
@@ -73,6 +75,7 @@ export class EntrepriseComponent implements OnInit {
   currentEntreprise: Entreprise | null = null;
   rejectionMotif = '';
   detailEntrepriseDialog = false;
+  CanSeeDirective = CanSeeDirective;
 
   // ✅ Détection du rôle
   currentUserRole: string = '';

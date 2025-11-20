@@ -227,10 +227,14 @@
         </div>
         <div class="dialog-header-text">
           <h2 class="text-xl font-bold m-0">
-            Modifier les rôles et le statut
+            {{ user.id ? 'Modifier le rôle et le statut' : 'Créer un nouvel utilisateur' }}
           </h2>
           <p class="text-sm m-0 mt-1 opacity-90">
-            Gérez les rôles et le statut de {{ user.prenom }} {{ user.nom }}
+            {{
+              user.id
+                ? ('Gérez le rôle et le statut de ' + (user.prenom || '') + ' ' + (user.nom || ''))
+                : 'Créez un utilisateur et attribuez-lui un rôle et un statut'
+            }}
           </p>
         </div>
       </div>
@@ -240,169 +244,327 @@
   <ng-template pTemplate="content">
     <div class="form-container">
       
-      <!-- Info utilisateur (readonly) -->
-      <div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 mb-6 border border-blue-200">
-        <div class="flex items-center gap-4">
-          <!-- Avatar -->
-          <div class="flex-shrink-0">
-            <ng-container *ngIf="user.photo; else noUserPhoto">
-              <img 
-                [src]="getImageUrl(user.photo)"
-                [alt]="user.nom"
-                class="w-16 h-16 rounded-full object-cover border-2 border-white shadow-md"
-                (error)="onImageError($event)">
-            </ng-container>
-            <ng-template #noUserPhoto>
-              <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center border-2 border-white shadow-md">
-                <i class="pi pi-user text-2xl text-white"></i>
-              </div>
-            </ng-template>
-          </div>
-          
-          <!-- Info -->
-          <div class="flex-1">
-            <h3 class="font-bold text-lg text-gray-800 m-0">
-              {{ user.prenom }} {{ user.nom }}
-            </h3>
-            <p class="text-sm text-gray-600 m-0 mt-1 flex items-center gap-2">
-              <i class="pi pi-envelope text-xs"></i>
-              {{ user.email }}
-            </p>
-            <p class="text-sm text-gray-600 m-0 mt-1 flex items-center gap-2" *ngIf="user.telephone">
-              <i class="pi pi-phone text-xs"></i>
-              {{ user.telephone }}
-            </p>
-          </div>
-          
-          <!-- ID -->
-          <div class="text-right">
-            <p class="text-xs text-gray-500 m-0">ID Utilisateur</p>
-            <p class="font-bold text-gray-800 m-0">#{{ user.id }}</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- ✅ Section Rôles (Multi-select) -->
-      <div class="form-section">
-        <div class="section-header">
-          <i class="pi pi-shield text-blue-600 mr-2"></i>
-          <h3 class="section-title">Rôles et permissions</h3>
-        </div>
-        
-        <div class="form-field">
-          <label for="roles" class="field-label">
-            Rôles attribués <span class="required">*</span>
-          </label>
-          
-          <!-- ✅ Multi-select pour les rôles -->
-          <p-multiSelect
-            id="roles"
-            [(ngModel)]="user.selectedRoleIds"
-            [options]="roles"
-            optionLabel="label"
-            optionValue="value"
-            placeholder="Sélectionnez un ou plusieurs rôles"
-            [filter]="true"
-            filterPlaceHolder="Rechercher un rôle..."
-            emptyFilterMessage="Aucun rôle trouvé"
-            [class.input-error]="submitted && (!user.selectedRoleIds || user.selectedRoleIds.length === 0)"
-            styleClass="w-full"
-            [showToggleAll]="false"
-            [maxSelectedLabels]="3"
-            selectedItemsLabel="{0} rôles sélectionnés">
+      <!-- ========================================
+           ✅ MODE MODIFICATION (Admin simplifié)
+           ======================================== -->
+      <ng-container *ngIf="user.id">
+        <!-- Info utilisateur (readonly) -->
+        <div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 mb-6 border border-blue-200">
+          <div class="flex items-center gap-4">
+            <!-- Avatar -->
+            <div class="flex-shrink-0">
+              <ng-container *ngIf="user.photo; else noUserPhoto">
+                <img 
+                  [src]="getImageUrl(user.photo)"
+                  [alt]="user.nom"
+                  class="w-16 h-16 rounded-full object-cover border-2 border-white shadow-md"
+                  (error)="onImageError($event)">
+              </ng-container>
+              <ng-template #noUserPhoto>
+                <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center border-2 border-white shadow-md">
+                  <i class="pi pi-user text-2xl text-white"></i>
+                </div>
+              </ng-template>
+            </div>
             
-            <!-- Template pour les items -->
-            <ng-template pTemplate="item" let-role>
-              <div class="flex items-center gap-2 py-2">
-                <i class="pi pi-shield text-blue-600"></i>
-                <span class="font-medium">{{ role.label }}</span>
-              </div>
-            </ng-template>
+            <!-- Info -->
+            <div class="flex-1">
+              <h3 class="font-bold text-lg text-gray-800 m-0">
+                {{ user.prenom }} {{ user.nom }}
+              </h3>
+              <p class="text-sm text-gray-600 m-0 mt-1 flex items-center gap-2">
+                <i class="pi pi-envelope text-xs"></i>
+                {{ user.email }}
+              </p>
+              <p class="text-sm text-gray-600 m-0 mt-1 flex items-center gap-2" *ngIf="user.telephone">
+                <i class="pi pi-phone text-xs"></i>
+                {{ user.telephone }}
+              </p>
+            </div>
             
-            <!-- Template pour les items sélectionnés (chips) -->
-            <ng-template pTemplate="selectedItems">
-              <div class="flex flex-wrap gap-1" *ngIf="user.selectedRoleIds && user.selectedRoleIds.length > 0">
-                <p-tag 
-                  *ngFor="let roleId of user.selectedRoleIds.slice(0, 3)"
-                  [value]="getRoleLabelById(roleId)"
-                  severity="info"
-                  styleClass="text-xs px-2 py-1">
-                </p-tag>
-                <p-tag 
-                  *ngIf="user.selectedRoleIds.length > 3"
-                  [value]="'+' + (user.selectedRoleIds.length - 3)"
-                  severity="secondary"
-                  styleClass="text-xs px-2 py-1">
-                </p-tag>
-              </div>
-            </ng-template>
-          </p-multiSelect>
-          
-          <small class="error-message" *ngIf="submitted && (!user.selectedRoleIds || user.selectedRoleIds.length === 0)">
-            Au moins un rôle doit être sélectionné
-          </small>
-          
-          <!-- Rôles actuels (avant modification) -->
-          <div class="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200" *ngIf="user.roles && user.roles.length > 0">
-            <p class="text-xs text-gray-600 font-semibold mb-2 flex items-center">
-              <i class="pi pi-info-circle mr-1"></i>
-              Rôles actuels :
-            </p>
-            <div class="flex flex-wrap gap-1">
-              <p-tag 
-                *ngFor="let role of user.roles"
-                [value]="role.nom || role"
-                severity="secondary"
-                styleClass="text-xs">
-              </p-tag>
+            <!-- ID -->
+            <div class="text-right">
+              <p class="text-xs text-gray-500 m-0">ID Utilisateur</p>
+              <p class="font-bold text-gray-800 m-0">#{{ user.id }}</p>
             </div>
           </div>
         </div>
-      </div>
 
-      <p-divider></p-divider>
-
-      <!-- Section Statut -->
-      <div class="form-section">
-        <div class="section-header">
-          <i class="pi pi-info-circle text-blue-600 mr-2"></i>
-          <h3 class="section-title">Statut du compte</h3>
-        </div>
-        
-        <div class="form-field">
-          <label for="statut" class="field-label">
-            Statut <span class="required">*</span>
-          </label>
-          <p-dropdown 
-            id="statut" 
-            [(ngModel)]="user.statut" 
-            [options]="statuts" 
-            optionLabel="label"
-            optionValue="value" 
-            placeholder="Sélectionnez un statut"
-            [class.input-error]="submitted && !user.statut"
-            styleClass="w-full">
-            
-            <ng-template pTemplate="selectedItem" let-item>
-              <div class="flex items-center gap-2" *ngIf="item">
-                <i class="pi" [class.pi-check-circle]="item.value === 'actif'" [class.pi-times-circle]="item.value !== 'actif'"></i>
-                <span class="font-medium">{{ item.label }}</span>
-              </div>
-            </ng-template>
-            
-            <ng-template pTemplate="item" let-item>
-              <div class="flex items-center gap-2 py-2">
-                <i class="pi" [class.pi-check-circle]="item.value === 'actif'" [class.pi-times-circle]="item.value !== 'actif'"></i>
-                <span>{{ item.label }}</span>
-              </div>
-            </ng-template>
-          </p-dropdown>
+        <!-- Section Rôle -->
+        <div class="form-section">
+          <div class="section-header">
+            <i class="pi pi-shield text-blue-600 mr-2"></i>
+            <h3 class="section-title">Rôle et permissions</h3>
+          </div>
           
-          <small class="error-message" *ngIf="submitted && !user.statut">
-            Le statut est obligatoire
-          </small>
+          <div class="form-field">
+            <label for="role_edit" class="field-label">
+              Rôle attribué <span class="required">*</span>
+            </label>
+            
+            <!-- ✅ DROPDOWN SIMPLE -->
+            <p-dropdown
+              id="role_edit"
+              [(ngModel)]="user.role_id"
+              [options]="roles"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Sélectionnez un rôle"
+              [filter]="true"
+              [showClear]="false"
+              [class.input-error]="submitted && !user.role_id"
+              styleClass="w-full">
+              
+              <ng-template pTemplate="item" let-role>
+                <div class="flex items-center gap-2 py-2">
+                  <i class="pi pi-shield text-blue-600"></i>
+                  <span class="font-medium">{{ role.label }}</span>
+                </div>
+              </ng-template>
+            </p-dropdown>
+            
+            <small class="error-message" *ngIf="submitted && !user.role_id">
+              Le rôle est obligatoire
+            </small>
+            
+            <!-- Rôle actuel -->
+            <div class="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200" *ngIf="user.roles && user.roles.length > 0">
+              <p class="text-xs text-gray-600 font-semibold mb-2 flex items-center">
+                <i class="pi pi-info-circle mr-1"></i>
+                Rôle actuel :
+              </p>
+              <div class="flex flex-wrap gap-1">
+                <p-tag 
+                  *ngFor="let role of user.roles"
+                  [value]="role.nom || role"
+                  severity="secondary"
+                  styleClass="text-xs">
+                </p-tag>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+
+        <p-divider></p-divider>
+
+        <!-- Section Statut -->
+        <div class="form-section">
+          <div class="section-header">
+            <i class="pi pi-info-circle text-blue-600 mr-2"></i>
+            <h3 class="section-title">Statut du compte</h3>
+          </div>
+          
+          <div class="form-field">
+            <label for="statut" class="field-label">
+              Statut <span class="required">*</span>
+            </label>
+            <p-dropdown 
+              id="statut" 
+              [(ngModel)]="user.statut" 
+              [options]="statuts" 
+              optionLabel="label"
+              optionValue="value" 
+              placeholder="Sélectionnez un statut"
+              [class.input-error]="submitted && !user.statut"
+              styleClass="w-full">
+              
+              <ng-template pTemplate="selectedItem" let-item>
+                <div class="flex items-center gap-2" *ngIf="item">
+                  <i class="pi" [class.pi-check-circle]="item.value === 'actif'" [class.pi-times-circle]="item.value !== 'actif'"></i>
+                  <span class="font-medium">{{ item.label }}</span>
+                </div>
+              </ng-template>
+              
+              <ng-template pTemplate="item" let-item>
+                <div class="flex items-center gap-2 py-2">
+                  <i class="pi" [class.pi-check-circle]="item.value === 'actif'" [class.pi-times-circle]="item.value !== 'actif'"></i>
+                  <span>{{ item.label }}</span>
+                </div>
+              </ng-template>
+            </p-dropdown>
+            
+            <small class="error-message" *ngIf="submitted && !user.statut">
+              Le statut est obligatoire
+            </small>
+          </div>
+        </div>
+      </ng-container>
+
+      <!-- ========================================
+           ✅ MODE CRÉATION (Formulaire complet)
+           ======================================== -->
+      <ng-container *ngIf="!user.id">
+        <!-- Section 1 : Informations personnelles -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-number">1</div>
+            <h3 class="section-title">Informations personnelles</h3>
+          </div>
+          
+          <div class="form-grid">
+            <!-- Nom -->
+            <div class="form-field">
+              <label for="nom" class="field-label">
+                Nom <span class="required">*</span>
+              </label>
+              <input 
+                pInputText 
+                id="nom" 
+                [(ngModel)]="user.nom"
+                placeholder="Ex: Dupont"
+                [class.input-error]="submitted && !user.nom"
+                class="field-input" />
+              <small class="error-message" *ngIf="submitted && !user.nom">
+                Le nom est obligatoire
+              </small>
+            </div>
+
+            <!-- Prénom -->
+            <div class="form-field">
+              <label for="prenom" class="field-label">
+                Prénom <span class="required">*</span>
+              </label>
+              <input 
+                pInputText 
+                id="prenom" 
+                [(ngModel)]="user.prenom"
+                placeholder="Ex: Jean"
+                [class.input-error]="submitted && !user.prenom"
+                class="field-input" />
+              <small class="error-message" *ngIf="submitted && !user.prenom">
+                Le prénom est obligatoire
+              </small>
+            </div>
+
+            <!-- Email -->
+            <div class="form-field full-width">
+              <label for="email" class="field-label">
+                Email <span class="required">*</span>
+              </label>
+              <input 
+                pInputText 
+                id="email" 
+                type="email"
+                [(ngModel)]="user.email"
+                placeholder="Ex: jean.dupont@example.com"
+                [class.input-error]="submitted && !user.email"
+                class="field-input" />
+              <small class="error-message" *ngIf="submitted && !user.email">
+                L'email est obligatoire
+              </small>
+            </div>
+
+            <!-- Téléphone -->
+            <div class="form-field">
+              <label for="telephone" class="field-label">
+                Téléphone <span class="optional">(Optionnel)</span>
+              </label>
+              <input 
+                pInputText 
+                id="telephone" 
+                [(ngModel)]="user.telephone"
+                placeholder="Ex: +226 XX XX XX XX"
+                class="field-input" />
+            </div>
+
+            <!-- Mot de passe -->
+            <div class="form-field">
+              <label for="password" class="field-label">
+                Mot de passe <span class="required">*</span>
+              </label>
+              <input 
+                pInputText 
+                id="password" 
+                type="password"
+                [(ngModel)]="user.password"
+                placeholder="••••••••"
+                [class.input-error]="submitted && !user.password"
+                class="field-input" />
+              <small class="error-message" *ngIf="submitted && !user.password">
+                Le mot de passe est obligatoire
+              </small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2 : Rôle -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-number section-number-orange">2</div>
+            <h3 class="section-title">Rôle et permissions</h3>
+          </div>
+          
+          <div class="form-field">
+            <label for="role_create" class="field-label">
+              Rôle attribué <span class="required">*</span>
+            </label>
+            
+            <!-- ✅ DROPDOWN SIMPLE (pas multiselect) -->
+            <p-dropdown
+              id="role_create"
+              [(ngModel)]="user.role_id"
+              [options]="roles"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Sélectionnez un rôle"
+              [filter]="true"
+              [showClear]="false"
+              [class.input-error]="submitted && !user.role_id"
+              styleClass="w-full">
+              
+              <ng-template pTemplate="item" let-role>
+                <div class="flex items-center gap-2 py-2">
+                  <i class="pi pi-shield text-blue-600"></i>
+                  <span class="font-medium">{{ role.label }}</span>
+                </div>
+              </ng-template>
+            </p-dropdown>
+            
+            <small class="error-message" *ngIf="submitted && !user.role_id">
+              Le rôle est obligatoire
+            </small>
+            
+            <!-- ✅ Afficher la valeur sélectionnée -->
+            <div *ngIf="user.role_id" class="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm">
+              <i class="pi pi-check text-green-600 mr-2"></i>
+              Rôle sélectionné : <strong>{{ getRoleLabelById(user.role_id) }}</strong> (ID: {{ user.role_id }})
+            </div>
+            
+            <small class="text-gray-500 text-xs mt-2 block">
+              <i class="pi pi-info-circle mr-1"></i>
+              Un seul rôle par utilisateur
+            </small>
+          </div>
+        </div>
+
+        <!-- Section 3 : Statut -->
+        <div class="form-section">
+          <div class="section-header">
+            <div class="section-number section-number-green">3</div>
+            <h3 class="section-title">Statut du compte</h3>
+          </div>
+          
+          <div class="form-field">
+            <label for="statut_create" class="field-label">
+              Statut <span class="required">*</span>
+            </label>
+            <p-dropdown 
+              id="statut_create" 
+              [(ngModel)]="user.statut" 
+              [options]="statuts" 
+              optionLabel="label"
+              optionValue="value" 
+              placeholder="Sélectionnez un statut"
+              [class.input-error]="submitted && !user.statut"
+              styleClass="w-full">
+            </p-dropdown>
+            
+            <small class="error-message" *ngIf="submitted && !user.statut">
+              Le statut est obligatoire
+            </small>
+          </div>
+        </div>
+      </ng-container>
 
     </div>
   </ng-template>
@@ -418,16 +580,16 @@
         (click)="hideDialog()">
       </p-button>
       <p-button 
-        label="Enregistrer les modifications"
+        [label]="user.id ? 'Enregistrer les modifications' : 'Créer l\'utilisateur'"
         icon="pi pi-check"
         styleClass="footer-btn-submit"
-        [disabled]="submitted && (!user.selectedRoleIds || user.selectedRoleIds.length === 0 || !user.statut)"
+        [disabled]="submitted && (!user.role_id || !user.statut)"
         (click)="saveUser()">
       </p-button>
     </div>
   </ng-template>
 </p-dialog>
-
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
 <p-confirmDialog [style]="{ width: '450px' }"></p-confirmDialog>
 
 <!-- Dialog de détails utilisateur - INCHANGÉ (tu l'aimes déjà !) -->
@@ -1419,5 +1581,27 @@
 
 .text-blue-600 {
   color: #2563eb;
+}
+.section-number {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+.section-number-orange {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+}
+
+.section-number-green {
+  background: linear-gradient(135deg, #10b981, #059669);
 }
 </style>

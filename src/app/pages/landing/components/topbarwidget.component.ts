@@ -5,6 +5,7 @@ import { ButtonModule } from 'primeng/button';
 import { RippleModule } from 'primeng/ripple';
 import { StyleClassModule } from 'primeng/styleclass';
 
+
 @Component({
   selector: 'topbar-widget',
   standalone: true,
@@ -26,6 +27,7 @@ import { StyleClassModule } from 'primeng/styleclass';
             <a (click)="router.navigate(['/landing'])" class="nav-link" [class.active]="isActiveRoute('/landing') || isActiveRoute('/')">Accueil</a>
             <a (click)="router.navigate(['/offres'])" class="nav-link" [class.active]="isActiveRoute('/offres')">Offres</a>
             <a (click)="router.navigate(['/suivre-candidature'])" class="nav-link" [class.active]="isActiveRoute('/suivre-candidature')">Suivre candidature</a>
+            <a (click)="router.navigate(['/about'])" class="nav-link" [class.active]="isActiveRoute('/about')">À propos</a>
           </nav>
 
           <div class="flex items-center gap-2">
@@ -52,6 +54,7 @@ import { StyleClassModule } from 'primeng/styleclass';
           <li><a (click)="router.navigate(['/landing'])" class="nav-link" [class.active]="isActiveRoute('/landing') || isActiveRoute('/')">Accueil</a></li>
           <li><a (click)="router.navigate(['/offres'])" class="nav-link" [class.active]="isActiveRoute('/offres')">Offres</a></li>
           <li><a (click)="router.navigate(['/candidatures'])" class="nav-link" [class.active]="isActiveRoute('/suivre-candidature')">Suivre candidature</a></li>
+          <li><a (click)="router.navigate(['/about'])" class="nav-link" [class.active]="isActiveRoute('/about')">À propos</a></li>
           <li><a (click)="createOffer.emit()" class="nav-link">Publier une offre</a></li>
           <li class="flex gap-2 pt-2">
             <button pButton pRipple label="Se connecter" [rounded]="true" class="brand-outline" (click)="router.navigate(['/connexion'])"></button>

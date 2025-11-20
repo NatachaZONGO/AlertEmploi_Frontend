@@ -56,6 +56,7 @@ export interface Offre {
 
   salaire: number;           // XOF (ou autre) côté UI on formate
   recruteur_id: number;
+  entreprise_id?: number;
   categorie_id?: number;
 
   motif_rejet?: string;

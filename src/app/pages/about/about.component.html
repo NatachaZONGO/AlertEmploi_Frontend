@@ -1,0 +1,147 @@
+<topbar-widget></topbar-widget>
+<section class="hero-section">
+  <div class="hero-overlay"></div>
+  <div class="hero-content">
+    <div class="container mx-auto px-4 text-center relative z-10">
+      <h1 class="hero-title">
+        <span class="gradient-text">AlerteEmploi</span>
+      </h1>
+      <p class="hero-subtitle">
+        Votre passerelle vers l'emploi au Burkina Faso
+      </p>
+      <p class="hero-description">
+        Nous connectons les talents burkinabè avec les meilleures opportunités professionnelles 
+        grâce à une plateforme moderne, intuitive et accessible à tous.
+      </p>
+      <div class="flex justify-center gap-4 mt-8">
+        <p-button 
+          label="Créer un compte" 
+          icon="pi pi-user-plus" 
+          styleClass="p-button-lg"
+          (onClick)="navigateTo('/register')"
+          [style]="{'background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 'border': 'none'}">
+
+        </p-button>
+        <p-button 
+          label="Découvrir les offres" 
+          icon="pi pi-briefcase" 
+          (onClick)="navigateTo('/offres')" 
+          styleClass="p-button-lg p-button-outlined"
+          [style]="{'color': 'white', 'border-color': 'white'}">
+        </p-button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Statistiques -->
+<section class="stats-section">
+  <div class="container mx-auto px-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div *ngFor="let stat of stats" class="stat-card">
+        <div [class]="'stat-icon ' + getColorClass(stat.color)">
+          <i [class]="'pi ' + stat.icon"></i>
+        </div>
+        <h3 class="stat-value">{{ stat.value }}</h3>
+        <p class="stat-label">{{ stat.label }}</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Mission -->
+<section class="mission-section">
+  <div class="container mx-auto px-4">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+      <!-- Image -->
+      <div class="mission-image">
+        <img [src]="imageMission" alt="Notre mission" class="rounded-2xl shadow-2xl">
+      </div>
+      
+      <!-- Contenu -->
+      <div>
+        <span class="section-badge">Notre Mission</span>
+        <h2 class="section-title">
+          Révolutionner l'accès à l'emploi au Burkina Faso
+        </h2>
+        <p class="section-description">
+          AlerteEmploi est née d'un constat simple : trop de talents burkinabè peinent à trouver 
+          des opportunités professionnelles adaptées, tandis que les entreprises cherchent 
+          désespérément des profils qualifiés.
+        </p>
+        <p class="section-description">
+          Notre plateforme utilise la technologie pour créer un pont entre ces deux mondes, 
+          en facilitant la mise en relation, en valorisant les compétences locales et en 
+          rendant le processus de recrutement plus transparent et efficace.
+        </p>
+        
+        <div class="mission-points">
+          <div class="mission-point">
+            <i class="pi pi-check-circle text-green-600"></i>
+            <span>Matching intelligent entre candidats et entreprises</span>
+          </div>
+          <div class="mission-point">
+            <i class="pi pi-check-circle text-green-600"></i>
+            <span>Accompagnement personnalisé des candidats</span>
+          </div>
+          <div class="mission-point">
+            <i class="pi pi-check-circle text-green-600"></i>
+            <span>Outils de recrutement modernes pour les entreprises</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Valeurs -->
+<section class="values-section">
+  <div class="container mx-auto px-4 text-center">
+    <span class="section-badge mx-auto">Nos Valeurs</span>
+    <h2 class="section-title">
+      Ce qui nous guide au quotidien
+    </h2>
+    <p class="section-description max-w-3xl mx-auto">
+      Nos valeurs sont le socle de notre engagement envers nos utilisateurs, 
+      qu'ils soient candidats ou entreprises.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-12">
+      <div *ngFor="let value of values" class="value-card">
+        <div [class]="'value-icon ' + getColorClass(value.color)">
+          <i [class]="'pi ' + value.icon + ' text-white'"></i>
+        </div>
+        <h3 class="value-title">{{ value.title }}</h3>
+        <p class="value-description">{{ value.description }}</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Call to Action -->
+<section class="cta-section">
+  <div class="container mx-auto px-4 text-center">
+    <h2 class="cta-title">
+      Prêt à faire partie de l'aventure ?
+    </h2>
+    <p class="cta-description">
+      Que vous soyez candidat à la recherche d'opportunités ou entreprise en quête de talents, 
+      AlerteEmploi est là pour vous accompagner.
+    </p>
+    <div class="flex justify-center gap-4 mt-8">
+      <p-button 
+        label="Je suis candidat" 
+        icon="pi pi-user" 
+        styleClass="p-button-lg"
+        severity="success">
+      </p-button>
+      <p-button 
+        label="Je recrute" 
+        icon="pi pi-building" 
+        styleClass="p-button-lg"
+        severity="info">
+      </p-button>
+    </div>
+  </div>
+</section>
+<app-footer-widget></app-footer-widget>

@@ -722,7 +722,7 @@
                 label="Enregistrer en brouillon"
                 icon="pi pi-save"
                 class="p-button-secondary p-button-sm"
-                *ngIf="!offre?.id"
+                *ngIf="!offre.id"
                 (click)="saveAsDraft()"
                 [loading]="loading()">
         </button>

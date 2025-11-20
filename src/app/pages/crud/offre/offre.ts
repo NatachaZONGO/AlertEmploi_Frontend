@@ -459,49 +459,58 @@ export class OffreComponent implements OnInit, OnDestroy {
   }
 
   // ✅ MODIFIÉ : Sauvegarder l'offre
-  saveOffre(): void {
-    this.submitted = true;
+ // ✅ MODIFIÉ : Sauvegarder l'offre
+saveOffre(): void {
+  this.submitted = true;
 
-    if (!this.offre?.titre?.trim() || !this.offre.type_offre || !this.offre.type_contrat) {
-      this.showWarnMessage('Veuillez remplir les champs obligatoires');
-      return;
-    }
-    
-    if (!this.offre.recruteur_id) {
-      this.showWarnMessage('Erreur : recruteur_id manquant');
-      return;
-    }
-
-    console.log('📤 Sauvegarde offre');
-    console.log('  - recruteur_id:', this.offre.recruteur_id);
-    console.log('  - Entreprise:', this.selectedEntrepriseCM?.nom_entreprise || 'N/A');
-    console.log('  - Payload:', this.offre);
-
-    this.loading.set(true);
-    const req$ = this.offre.id
-      ? this.offreService.updateOffre(this.offre.id, this.offre)
-      : this.offreService.createOffre(this.offre);
-
-    req$
-      .pipe(
-        takeUntil(this.destroy$),
-        finalize(() => this.loading.set(false))
-      )
-      .subscribe({
-        next: (response) => {
-          console.log('✅ Offre sauvegardée:', response);
-          this.showSuccessMessage(this.offre.id ? 'Offre mise à jour' : 'Offre créée');
-          this.loadOffres();
-          this.offreDialog = false;
-          this.offre = {} as Offre;
-        },
-        error: err => {
-          console.error('❌ Erreur saveOffre:', err);
-          console.error('Détails:', err.error);
-          this.showErrorMessage(err.error?.message || 'Erreur lors de la sauvegarde');
-        }
-      });
+  // Champs obligatoires communs
+  if (!this.offre?.titre?.trim() || !this.offre.type_offre || !this.offre.type_contrat) {
+    this.showWarnMessage('Veuillez remplir les champs obligatoires');
+    return;
   }
+
+  // ✅ Ne bloquer sur recruteur_id QUE pour recruteur / CM
+  const role = (this.role || '').toLowerCase().trim();
+  const needRecruteurId = role === 'recruteur' || role === 'community_manager';
+
+  if (needRecruteurId && !this.offre.recruteur_id) {
+    this.showWarnMessage('Impossible de créer une offre sans recruteur pour ce rôle.');
+    return;
+  }
+
+  console.log('📤 Sauvegarde offre');
+  console.log('  - role:', role);
+  console.log('  - recruteur_id:', this.offre.recruteur_id);
+  console.log('  - entreprise_id:', this.offre.entreprise_id);
+  console.log('  - Payload:', this.offre);
+
+  this.loading.set(true);
+
+  const req$ = this.offre.id
+    ? this.offreService.updateOffre(this.offre.id, this.offre)
+    : this.offreService.createOffre(this.offre);
+
+  req$
+    .pipe(
+      takeUntil(this.destroy$),
+      finalize(() => this.loading.set(false))
+    )
+    .subscribe({
+      next: (response) => {
+        console.log('✅ Offre sauvegardée:', response);
+        this.showSuccessMessage(this.offre.id ? 'Offre mise à jour' : 'Offre créée');
+        this.loadOffres();
+        this.offreDialog = false;
+        this.offre = {} as Offre;
+      },
+      error: err => {
+        console.error('❌ Erreur saveOffre:', err);
+        console.error('Détails:', err.error);
+        this.showErrorMessage(err.error?.message || 'Erreur lors de la sauvegarde');
+      }
+    });
+}
+
 
   // ✅ AJOUTÉ : Helper pour obtenir l'URL de l'image
   getImageUrl(imagePath: string): string {
